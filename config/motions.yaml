@@ -1,0 +1,15 @@
+poses:
+  home: # This is the base pose for the arm. Need to calibrate this before we use it. 
+    sh_flex: 2048
+    sh_abd: 2048
+    sh_rot: 2048
+    elb_flex: 2048
+    farm_rot: 2048
+    wrist_flex: 2048
+    fin_thumb: 2048
+    fin_index: 2048
+    fin_middle: 2048
+    fin_ring: 2048
+    fin_pinky: 2048
+
+trajectories: {}

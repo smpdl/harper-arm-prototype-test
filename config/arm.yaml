@@ -1,0 +1,81 @@
+# Note: 
+
+# Position limits are in raw encoder units, and have not been 
+# calibrated yet. We will need to calibrate this before we can use it.
+
+# Current limits are in mA, and also have not been calibrated yet. 
+# To calibrate this, we will need to measure the current draw of the motor
+# at different positions and velocities. The limit will be the maximum current that 
+# we will allow the motor to draw. 
+
+serial:
+  port: "/dev/ttyUSB0"
+  baud_rate: 57600
+
+joints:
+  sh_flex:
+    id: 1
+    model: xm540-w350-t
+    protocol: 2
+    position_limits: [0, 4095]
+    current_limit: 1193 
+  sh_abd:
+    id: 2
+    model: xm540-w350-t
+    protocol: 2
+    position_limits: [0, 4095]
+    current_limit: 1193
+  sh_rot:
+    id: 3
+    model: xm540-w270-t
+    protocol: 2
+    position_limits: [0, 4095]
+    current_limit: 1193
+  elb_flex:
+    id: 4
+    model: xl430-w250-t
+    protocol: 2
+    position_limits: [0, 4095]
+    current_limit: 1193
+  farm_rot:
+    id: 5
+    model: xl430-w250-t
+    protocol: 2
+    position_limits: [0, 4095]
+    current_limit: 1193
+  wrist_flex:
+    id: 6
+    model: xl430-w250-t
+    protocol: 2
+    position_limits: [0, 4095]
+    current_limit: 910
+  fin_thumb:
+    id: 7
+    model: xc330-m288-t
+    protocol: 2
+    position_limits: [0, 4095]
+    current_limit: 910
+  fin_index:
+    id: 8
+    model: xc330-m288-t
+    protocol: 2
+    position_limits: [0, 4095]
+    current_limit: 910
+  fin_middle:
+    id: 9
+    model: xc330-m288-t
+    protocol: 2
+    position_limits: [0, 4095]
+    current_limit: 910
+  fin_ring:
+    id: 10
+    model: xc330-m288-t
+    protocol: 2
+    position_limits: [0, 4095]
+    current_limit: 910
+  fin_pinky:
+    id: 11
+    model: xc330-m288-t
+    protocol: 2
+    position_limits: [0, 4095]
+    current_limit: 910
