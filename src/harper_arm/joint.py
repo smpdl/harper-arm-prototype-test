@@ -1,88 +1,73 @@
-"""Single-joint abstraction for command + telemetry access."""
-
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import UTC, datetime
+import threading
+from dataclasses import dataclass, field
+from pathlib import Path
 
-from .config import JointConfig
+from dynio import DynamixelIO, DynamixelMotor
 
+from harper_arm.config import ArmConfig, JointConfig, load_arm_config
+from harper_arm.motor import connect_io, disconnect_io, new_motor
 
-@dataclass(frozen=True) # immutable data class
-class JointSample:
-    timestamp: datetime
-    joint: str
-    position: int
-    velocity: int
-    current: int
-    temperature: int
-    voltage: int
+DEFAULT_CONFIG_PATH = Path("config/arm.yaml")
 
 
+def configure_joint_position_mode(motor: DynamixelMotor, joint: JointConfig) -> None:
+    """Configure the joint in position mode.
+
+    If the joint's position limits are outside the range of 0 to 4095,
+    the joint is configured in extended position mode. Otherwise, it is
+    configured in single-turn position mode.
+
+    Args:
+        motor: The motor to configure.
+        joint: The joint to configure.
+    """
+    low, high = joint.position_limits
+    if low < 0 or high > 4095:
+        motor.set_extended_position_mode()
+    else:
+        motor.set_position_mode(min_limit=low, max_limit=high)
+
+
+@dataclass
 class Joint:
-    def __init__(self, config: JointConfig, motor: object) -> None:
-        self.config = config
-        self.motor = motor
+    config: ArmConfig
+    joint_name: str
+    io: DynamixelIO
+    motor: DynamixelMotor
+    joint: JointConfig
+    bus_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
-    @property
-    def name(self) -> str:
-        return self.config.name
+    @classmethod
+    def open(
+        cls,
+        *,
+        joint_name: str,
+        config_path: Path | str = DEFAULT_CONFIG_PATH,
+    ) -> Joint:
+        config = load_arm_config(config_path)
+        try:
+            joint = config.joints[joint_name]
+        except KeyError as exc:
+            known = ", ".join(sorted(config.joints))
+            raise ValueError(f"unknown joint {joint_name!r}; known: {known}") from exc
 
-    def ping(self) -> bool:
-        return bool(self._read("Model_Number"))
+        io = connect_io(config.serial_port, config.baud_rate)
+        motor = new_motor(io, joint.id, joint.model, protocol=joint.protocol)
+        return cls(config=config, joint_name=joint_name, io=io, motor=motor, joint=joint)
 
-    def read_present_voltage(self) -> int:
-        return int(self._read("Present_Input_Voltage"))
-
-    def read_present_temperature(self) -> int:
-        return int(self._read("Present_Temperature"))
-
-    def read_present_current(self) -> int:
-        return int(self.motor.get_current())
-
-    def read_present_position(self) -> int:
-        return int(self._read("Present_Position"))
-
-    def read_present_velocity(self) -> int:
-        return int(self._read("Present_Velocity"))
-
-    def set_goal_position(self, raw_ticks: int) -> None:
-        low, high = self.config.position_limits
-        if raw_ticks < low or raw_ticks > high:
-            raise ValueError(
-                f"Requested goal position {raw_ticks} outside limits [{low}, {high}] "
-                f"for joint '{self.name}'."
-            )
-        self.motor.set_position(raw_ticks)
-
-    def set_goal_velocity(self, raw_units: int) -> None:
-        self.motor.set_velocity(raw_units)
-
-    def set_position_mode(self) -> None:
-        self.motor.set_position_mode(
-            min_limit=self.config.position_limits[0],
-            max_limit=self.config.position_limits[1],
-        )
-
-    def set_velocity_mode(self) -> None:
-        self.motor.set_velocity_mode()
-
-    def torque_enable(self, enable: bool) -> None:
-        if enable:
-            self.motor.torque_enable()
-        else:
+    def close(self) -> None:
+        try:
             self.motor.torque_disable()
+        except Exception:
+            pass
+        disconnect_io(self.io)
 
-    def sample_state(self) -> JointSample:
-        return JointSample(
-            timestamp=datetime.now(UTC),
-            joint=self.name,
-            position=self.read_present_position(),
-            velocity=self.read_present_velocity(),
-            current=self.read_present_current(),
-            temperature=self.read_present_temperature(),
-            voltage=self.read_present_voltage(),
-        )
+    def configure_position_mode(self) -> None:
+        configure_joint_position_mode(self.motor, self.joint)
 
-    def _read(self, register_name: str) -> int:
-        return int(self.motor.read_control_table(register_name))
+    def configure_velocity_mode(self, *, goal_current: int | None = None) -> None:
+        self.motor.set_velocity_mode(goal_current=goal_current)
+
+

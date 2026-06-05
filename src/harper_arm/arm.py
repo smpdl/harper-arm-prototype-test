@@ -1,67 +1,74 @@
-"""Aggregate abstraction across all configured joints."""
-
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path
 
-from .bus import DynamixelBus
-from .config import ArmConfig
-from .joint import Joint, JointSample
+from dynio import DynamixelIO, DynamixelMotor
+
+from harper_arm.config import ArmConfig, load_arm_config
+from harper_arm.joint import DEFAULT_CONFIG_PATH, configure_joint_position_mode
+from harper_arm.motor import connect_io, disconnect_io, new_motor
+from harper_arm.safety import torque_off_all
+from harper_arm.sampling import JointSample, sample_joints
 
 
-class Arm:
-    def __init__(self, joints: dict[str, Joint]) -> None:
-        self._joints = joints
+@dataclass
+class FullArm:
+    """All configured joints on one Dynamixel bus."""
+    config: ArmConfig
+    io: DynamixelIO
+    motors: Mapping[str, DynamixelMotor]
 
     @classmethod
-    def from_config(cls, bus: DynamixelBus, config: ArmConfig) -> "Arm":
-        bus.connect()
-        joints: dict[str, Joint] = {}
-        for name, joint_config in config.joints.items():
-            motor = bus.new_motor_for_joint(joint_config)
-            joints[name] = Joint(config=joint_config, motor=motor)
-        return cls(joints=joints)
+    def open(cls, *, config_path: Path | str = DEFAULT_CONFIG_PATH) -> FullArm:
+        """Open the arm.
 
-    def joint_names(self) -> tuple[str, ...]:
-        return tuple(self._joints.keys())
+        Args:
+            config_path: Path to the arm configuration file. Defaults to
+                ``DEFAULT_CONFIG_PATH``.
 
-    def get_joint(self, name: str) -> Joint:
-        try:
-            return self._joints[name]
-        except KeyError as exc:
-            known = ", ".join(self._joints.keys())
-            raise KeyError(f"Unknown joint '{name}'. Known joints: {known}") from exc
+        Returns:
+            A FullArm object.
+        """
 
-    def ping_all(self) -> dict[str, bool]:
-        return {name: joint.ping() for name, joint in self._joints.items()}
+        config = load_arm_config(config_path) 
+        io = connect_io(config.serial_port, config.baud_rate)
+        motors = {
+            name: new_motor(io, joint.id, joint.model, protocol=joint.protocol)
+            for name, joint in config.joints.items()
+        }
+        return cls(config=config, io=io, motors=motors)
 
-    def sample_all(self) -> dict[str, JointSample]:
-        return {name: joint.sample_state() for name, joint in self._joints.items()}
+    def close(self) -> None:
+        """Close the arm.
 
-    def read_all_present_position(self) -> dict[str, int]:
-        return {name: joint.read_present_position() for name, joint in self._joints.items()}
+        This function will torque off all the motors.
+        """
+        torque_off_all(self.motors)
+        disconnect_io(self.io)
 
-    def read_all_present_velocity(self) -> dict[str, int]:
-        return {name: joint.read_present_velocity() for name, joint in self._joints.items()}
+    def configure_position_mode(self) -> None:
+        """Configure the position mode for all the joints."""
+        for name, motor in self.motors.items():
+            configure_joint_position_mode(motor, self.config.joints[name])
 
-    def read_all_present_current(self) -> dict[str, int]:
-        return {name: joint.read_present_current() for name, joint in self._joints.items()}
+    def torque_enable_all(self) -> None:
+        """Torque enable all the motors."""
+        for motor in self.motors.values():
+            motor.torque_enable()
 
-    def read_all_present_temperature(self) -> dict[str, int]:
-        return {name: joint.read_present_temperature() for name, joint in self._joints.items()}
+    def joint_models(self) -> dict[str, str]:
+        """Get the models of all the joints."""
+        return {name: joint.model for name, joint in self.config.joints.items()}
 
-    def read_all_present_voltage(self) -> dict[str, int]:
-        return {name: joint.read_present_voltage() for name, joint in self._joints.items()}
+    def current_limits(self) -> dict[str, int]:
+        """Get the current limits of all the joints."""
+        return {name: joint.current_limit for name, joint in self.config.joints.items()}
 
-    def move_joints(self, goal_positions: Mapping[str, int]) -> None:
-        self._validate_joint_names(goal_positions)
-        for name, position in goal_positions.items():
-            self._joints[name].set_goal_position(position)
+    def sample(self) -> dict[str, JointSample]:
+        """Sample the joints."""
+        return sample_joints(self.motors)
 
-    def execute_named_pose(self, pose: Mapping[str, int]) -> None:
-        self.move_joints(pose)
 
-    def _validate_joint_names(self, values: Mapping[str, int]) -> None:
-        unknown = [name for name in values if name not in self._joints]
-        if unknown:
-            raise KeyError(f"Unknown joints in command: {', '.join(unknown)}")
+

@@ -1,81 +1,94 @@
-# Note: 
+# Note (units):
 
-# Position limits are in raw encoder units, and have not been 
-# calibrated yet. We will need to calibrate this before we can use it.
+# Position limits are raw encoder ticks (1 tick = 1 pulse).
+# X-series resolution is 4096 ticks/rev (0 ~ 4095 in single-turn position mode).
+#
+# Encoder ticks <-> degrees:
+#   degrees = ticks * (360 / 4096)   
+#   ticks   = degrees * (4096 / 360) 
+#
+# Example: 1500 ticks -> 1500 * 360 / 4096 ~= 131.8 deg
+#
+# Extended / multi-turn joints may use ticks outside 0..4095; same formula applies.
 
-# Current limits are in mA, and also have not been calibrated yet. 
-# To calibrate this, we will need to measure the current draw of the motor
-# at different positions and velocities. The limit will be the maximum current that 
-# we will allow the motor to draw. 
+# Current limits are Goal Current register units (not mA).
+# XM540, XM430: 1 unit = 2.69 mA  (e.g. 5.5 A -> 5500 / 2.69 ~= 2045)
+# XL430, XC330: 1 unit = 1.0 mA   (e.g. 1.4 A -> 1400)
+
+# Note (current limits):
+
+# Values are datasheet max stall current, converted to register units
+# (see conversion notes above). This may differ from the factory EEPROM default
+# for Current Limit(38) (e.g. XM430 default 1193 vs 1004 for 2.7 A).
 
 serial:
   port: "/dev/ttyUSB0"
-  baud_rate: 57600
+  baud_rate: 57600 
 
 joints:
-  sh_flex:
+  r_sh_flex: # still need to calibrate this
     id: 1
-    model: xm540-w350-t
-    protocol: 2
-    position_limits: [0, 4095]
-    current_limit: 1193 
-  sh_abd:
-    id: 2
-    model: xm540-w350-t
-    protocol: 2
-    position_limits: [0, 4095]
-    current_limit: 1193
-  sh_rot:
-    id: 3
     model: xm540-w270-t
     protocol: 2
     position_limits: [0, 4095]
-    current_limit: 1193
-  elb_flex:
+    current_limit: 2045
+  r_sh_abd:
+    id: 2
+    model: xm540-w270-t
+    protocol: 2
+    position_limits: [1500, 3200]
+    current_limit: 2045
+  r_sh_rot:
+    id: 3
+    model: xm430-w350-t
+    protocol: 2
+    position_limits: [1500, 4500]
+    current_limit: 1004
+  r_elb_flex:
     id: 4
     model: xl430-w250-t
     protocol: 2
-    position_limits: [0, 4095]
-    current_limit: 1193
-  farm_rot:
+    position_limits: [-15500, 5500]
+    current_limit: 1400
+  r_farm_rot: # still need to calibrate this
     id: 5
     model: xl430-w250-t
     protocol: 2
     position_limits: [0, 4095]
-    current_limit: 1193
-  wrist_flex:
+    current_limit: 1400
+  r_wrist_flex:
     id: 6
     model: xl430-w250-t
     protocol: 2
-    position_limits: [0, 4095]
-    current_limit: 910
-  fin_thumb:
+    position_limits: [3200, 4800]
+    current_limit: 1400
+  r_fin_thumb:
     id: 7
     model: xc330-m288-t
     protocol: 2
-    position_limits: [0, 4095]
-    current_limit: 910
-  fin_index:
+    position_limits: [2500, 5500]
+    current_limit: 2150
+  r_fin_index:
     id: 8
     model: xc330-m288-t
     protocol: 2
-    position_limits: [0, 4095]
-    current_limit: 910
-  fin_middle:
+    position_limits: [-500, 3200]
+    current_limit: 2150
+  r_fin_middle:
     id: 9
     model: xc330-m288-t
     protocol: 2
-    position_limits: [0, 4095]
-    current_limit: 910
-  fin_ring:
+    position_limits: [-2000, 1900]
+    current_limit: 2150
+  r_fin_ring:
     id: 10
     model: xc330-m288-t
     protocol: 2
-    position_limits: [0, 4095]
-    current_limit: 910
-  fin_pinky:
+    position_limits: [1500, 5500]
+    current_limit: 2150
+  r_fin_pinky:
     id: 11
     model: xc330-m288-t
     protocol: 2
-    position_limits: [0, 4095]
-    current_limit: 910
+    position_limits: [3000, 6000]
+    current_limit: 2150
