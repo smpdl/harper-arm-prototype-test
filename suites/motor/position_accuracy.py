@@ -40,14 +40,14 @@ def run(
         on_status=on_status,
     ) as (connected_joint, recorder):
         connected_joint.configure_position_mode()
-        connected_joint.motor.torque_enable()
+        connected_joint.torque_enable()
         errors: list[float] = []
         reached_all = True
 
         for target_deg in TARGET_ANGLES_DEG:
             goal_ticks = _target_ticks_for_angle(connected_joint.joint, target_deg)
             for trial in range(1, trials + 1):
-                reached, measured_ticks = move_to_ticks(connected_joint.motor, goal_ticks)
+                reached, measured_ticks = move_to_ticks(connected_joint, goal_ticks)
                 reached_all = reached_all and reached
                 error_deg = units.position_error_deg(measured_ticks, goal_ticks)
                 measured_deg = target_deg + error_deg

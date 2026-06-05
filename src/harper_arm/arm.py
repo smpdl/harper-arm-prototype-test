@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import threading
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dynio import DynamixelIO, DynamixelMotor
@@ -19,6 +20,7 @@ class FullArm:
     config: ArmConfig
     io: DynamixelIO
     motors: Mapping[str, DynamixelMotor]
+    bus_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     @classmethod
     def open(cls, *, config_path: Path | str = DEFAULT_CONFIG_PATH) -> FullArm:
@@ -45,18 +47,21 @@ class FullArm:
 
         This function will torque off all the motors.
         """
-        torque_off_all(self.motors)
+        with self.bus_lock:
+            torque_off_all(self.motors)
         disconnect_io(self.io)
 
     def configure_position_mode(self) -> None:
         """Configure the position mode for all the joints."""
-        for name, motor in self.motors.items():
-            configure_joint_position_mode(motor, self.config.joints[name])
+        with self.bus_lock:
+            for name, motor in self.motors.items():
+                configure_joint_position_mode(motor, self.config.joints[name])
 
     def torque_enable_all(self) -> None:
         """Torque enable all the motors."""
-        for motor in self.motors.values():
-            motor.torque_enable()
+        with self.bus_lock:
+            for motor in self.motors.values():
+                motor.torque_enable()
 
     def joint_models(self) -> dict[str, str]:
         """Get the models of all the joints."""
@@ -68,7 +73,8 @@ class FullArm:
 
     def sample(self) -> dict[str, JointSample]:
         """Sample the joints."""
-        return sample_joints(self.motors)
+        with self.bus_lock:
+            return sample_joints(self.motors)
 
 
 

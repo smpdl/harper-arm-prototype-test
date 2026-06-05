@@ -24,7 +24,7 @@ def run(
         config_path=config_path,
         results_root=results_root,
         on_status=on_status,
-        setup=lambda connected_joint: connected_joint.motor.torque_disable(),
+        setup=lambda connected_joint: connected_joint.torque_disable(),
         row_fields=lambda sample, connected_joint: {
             "current": sample.current,
             "current_ma": units.current_to_ma(

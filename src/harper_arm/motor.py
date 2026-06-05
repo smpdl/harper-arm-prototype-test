@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 
 from dynio import DynamixelIO, DynamixelMotor
@@ -50,17 +51,32 @@ def disconnect_io(io: DynamixelIO | None) -> None:
 
 
 def move_to_ticks(
-    motor: DynamixelMotor,
+    bus: object,
     target_ticks: int,
     *,
+    joint_name: str | None = None,
     timeout_s: float = MOVE_TIMEOUT_S,
     tolerance_ticks: int = POSITION_TOLERANCE_TICKS,
 ) -> tuple[bool, int]:
-    motor.set_position(target_ticks)
-    deadline = time.monotonic() + timeout_s
-    measured_ticks = int(motor.get_position())
-    while time.monotonic() < deadline:
+    """Move one motor to ``target_ticks`` and wait until settled or timed out.
+
+    ``bus`` must expose ``bus_lock`` and either ``motor`` (single joint) or
+    ``motors`` (full arm, with ``joint_name`` set).
+    """
+    bus_lock: threading.Lock = bus.bus_lock  # type: ignore[attr-defined]
+    if joint_name is None:
+        motor: DynamixelMotor = bus.motor  # type: ignore[attr-defined]
+    else:
+        motor = bus.motors[joint_name]  # type: ignore[attr-defined]
+
+    with bus_lock:
+        motor.set_position(target_ticks)
         measured_ticks = int(motor.get_position())
+
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        with bus_lock:
+            measured_ticks = int(motor.get_position())
         if abs(measured_ticks - target_ticks) <= tolerance_ticks:
             return True, measured_ticks
         time.sleep(0.05)

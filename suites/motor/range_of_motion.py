@@ -31,12 +31,12 @@ def run(
         on_status=on_status,
     ) as (connected_joint, recorder):
         connected_joint.configure_position_mode()
-        connected_joint.motor.torque_enable()
+        connected_joint.torque_enable()
         waypoints = sweep_waypoints(connected_joint.joint, steps=steps)
         reached_all = True
 
         for index, target_ticks in enumerate(waypoints):
-            reached, measured_ticks = move_to_ticks(connected_joint.motor, target_ticks)
+            reached, measured_ticks = move_to_ticks(connected_joint, target_ticks)
             reached_all = reached_all and reached
             recorder.write_row(
                 {

@@ -32,15 +32,13 @@ def run(
         on_status=on_status,
     ) as (connected_joint, recorder):
         connected_joint.configure_velocity_mode()
-        connected_joint.motor.torque_enable()
+        connected_joint.torque_enable()
         errors: list[float] = []
 
         for index, target_rpm in enumerate(TARGET_RPMS):
-            connected_joint.motor.set_velocity(units.rpm_to_velocity(target_rpm))
+            connected_joint.set_velocity(units.rpm_to_velocity(target_rpm))
             time.sleep(step_hold_s)
-            measured_velocity = int(
-                connected_joint.motor.read_control_table("Present_Velocity")
-            )
+            measured_velocity = connected_joint.read_present_velocity()
             measured_rpm = units.velocity_to_rpm(measured_velocity)
             error_rpm = measured_rpm - target_rpm
             errors.append(abs(error_rpm))
@@ -55,7 +53,7 @@ def run(
                 }
             )
 
-        connected_joint.motor.set_velocity(0)
+        connected_joint.set_velocity(0)
         recorder.set_summary(
             max_abs_error_rpm=max(errors) if errors else None,
             mean_abs_error_rpm=(sum(errors) / len(errors)) if errors else None,

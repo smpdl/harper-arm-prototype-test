@@ -41,8 +41,8 @@ def run(
     ) as (connected_joint, recorder):
         goal_current = int(round(connected_joint.joint.current_limit * load_fraction))
         connected_joint.configure_velocity_mode(goal_current=goal_current)
-        connected_joint.motor.torque_enable()
-        connected_joint.motor.set_velocity(units.rpm_to_velocity(5.0))
+        connected_joint.torque_enable()
+        connected_joint.set_velocity(units.rpm_to_velocity(5.0))
 
         started = time.monotonic()
         deadline = started + duration_s
@@ -51,7 +51,7 @@ def run(
 
         while time.monotonic() < deadline:
             elapsed_s = time.monotonic() - started
-            sample = read_joint_sample(connected_joint.motor, joint=joint)
+            sample = read_joint_sample(connected_joint)
             temp_c = units.temperature_to_celsius(sample.temperature)
             current_ma = units.current_to_ma(
                 sample.current, model=connected_joint.joint.model
@@ -72,7 +72,7 @@ def run(
             if delay > 0:
                 time.sleep(delay)
 
-        connected_joint.motor.set_velocity(0)
+        connected_joint.set_velocity(0)
         recorder.set_summary(
             peak_temperature_c=peak_temp if peak_temp != float("-inf") else None,
             goal_current=goal_current,

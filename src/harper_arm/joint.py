@@ -58,16 +58,39 @@ class Joint:
         return cls(config=config, joint_name=joint_name, io=io, motor=motor, joint=joint)
 
     def close(self) -> None:
-        try:
-            self.motor.torque_disable()
-        except Exception:
-            pass
+        with self.bus_lock:
+            try:
+                self.motor.torque_disable()
+            except Exception:
+                pass
         disconnect_io(self.io)
 
     def configure_position_mode(self) -> None:
-        configure_joint_position_mode(self.motor, self.joint)
+        with self.bus_lock:
+            configure_joint_position_mode(self.motor, self.joint)
 
     def configure_velocity_mode(self, *, goal_current: int | None = None) -> None:
-        self.motor.set_velocity_mode(goal_current=goal_current)
+        with self.bus_lock:
+            self.motor.set_velocity_mode(goal_current=goal_current)
+
+    def torque_enable(self) -> None:
+        with self.bus_lock:
+            self.motor.torque_enable()
+
+    def torque_disable(self) -> None:
+        with self.bus_lock:
+            self.motor.torque_disable()
+
+    def get_position(self) -> int:
+        with self.bus_lock:
+            return int(self.motor.get_position())
+
+    def set_velocity(self, velocity: int) -> None:
+        with self.bus_lock:
+            self.motor.set_velocity(velocity)
+
+    def read_present_velocity(self) -> int:
+        with self.bus_lock:
+            return int(self.motor.read_control_table("Present_Velocity"))
 
 

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from dynio import DynamixelMotor
+    from harper_arm.joint import Joint
 
 RegisterReader = Callable[[], dict[str, "JointSample"]]
 StopCheck = Callable[[dict[str, "JointSample"]], tuple[bool, str, str | None]]
@@ -28,8 +29,7 @@ class JointSample:
     temperature: int
     voltage: int
 
-def read_joint_sample(motor: DynamixelMotor, *, joint: str) -> JointSample:
-    """Read present registers from a dynio motor."""
+def _read_joint_sample_from_motor(motor: DynamixelMotor, *, joint: str) -> JointSample:
     return JointSample(
         timestamp=datetime.now(UTC),
         joint=joint,
@@ -40,9 +40,18 @@ def read_joint_sample(motor: DynamixelMotor, *, joint: str) -> JointSample:
         voltage=int(motor.read_control_table("Present_Input_Voltage")),
     )
 
+
+def read_joint_sample(joint: Joint) -> JointSample:
+    """Read present registers from a connected joint."""
+    with joint.bus_lock:
+        return _read_joint_sample_from_motor(joint.motor, joint=joint.joint_name)
+
 def sample_joints(joints: Mapping[str, DynamixelMotor]) -> dict[str, JointSample]:
-    """Sample the joints."""
-    return {name: read_joint_sample(motor, joint=name) for name, motor in joints.items()}
+    """Sample the joints. Caller must hold the bus lock when sharing a serial port."""
+    return {
+        name: _read_joint_sample_from_motor(motor, joint=name)
+        for name, motor in joints.items()
+    }
 
 def _sleep_until(next_tick: float) -> None:
     """Sleep until the next tick."""

@@ -90,7 +90,7 @@ def move_to_pose(
     pose: Mapping[str, int],
 ) -> dict[str, tuple[bool, int]]:
     return {
-        joint_name: move_to_ticks(arm.motors[joint_name], target_ticks)
+        joint_name: move_to_ticks(arm, target_ticks, joint_name=joint_name)
         for joint_name, target_ticks in pose.items()
     }
 

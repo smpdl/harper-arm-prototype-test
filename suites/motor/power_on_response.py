@@ -31,15 +31,15 @@ def run(
         on_status=on_status,
     ) as (connected_joint, recorder):
         connected_joint.configure_position_mode()
-        start_ticks = int(connected_joint.motor.get_position())
+        start_ticks = connected_joint.get_position()
         start_deg = units.ticks_to_degrees(start_ticks)
         goal_ticks = start_ticks + units.degrees_to_ticks(POWER_ON_DELTA_DEG)
         low, high = connected_joint.joint.position_limits
         goal_ticks = max(low, min(high, goal_ticks))
 
-        connected_joint.motor.torque_enable()
+        connected_joint.torque_enable()
         started = time.monotonic()
-        reached, end_ticks = move_to_ticks(connected_joint.motor, goal_ticks)
+        reached, end_ticks = move_to_ticks(connected_joint, goal_ticks)
         duration_s = time.monotonic() - started
         end_deg = units.ticks_to_degrees(end_ticks)
         delta_deg = end_deg - start_deg

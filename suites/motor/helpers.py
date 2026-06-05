@@ -120,7 +120,7 @@ def run_single_read(
     ) as (connected_joint, recorder):
         if setup is not None:
             setup(connected_joint)
-        sample = read_joint_sample(connected_joint.motor, joint=joint)
+        sample = read_joint_sample(connected_joint)
         recorder.write_row(
             {
                 "timestamp_utc": utc_now().isoformat(),
