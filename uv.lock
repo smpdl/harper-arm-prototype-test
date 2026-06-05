@@ -70,7 +70,7 @@ wheels = [
 [[package]]
 name = "dynamixel-controller"
 version = "0.8.1"
-source = { git = "https://github.com/smpdl/dynamixel-controller.git#27627a0123ab92793e6fdd311bed04d19238530a" }
+source = { git = "https://github.com/smpdl/dynamixel-controller.git#54d7c9bff49d651e68d60f88ebd65ad7566e793d" }
 dependencies = [
     { name = "deprecation" },
     { name = "pyserial" },

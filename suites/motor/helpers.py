@@ -17,6 +17,10 @@ from harper_arm.status import MotorStatus, read_motor_status
 
 DEFAULT_RESULTS_ROOT = Path("results")
 STATUS_POLL_INTERVAL_S = 0.25
+# Quick single-shot reads; live polling would race on the serial port.
+_TESTS_WITHOUT_LIVE_STATUS = frozenset(
+    {"ping", "present_voltage", "present_temperature", "current_no_load"}
+)
 
 
 def utc_now() -> datetime:
@@ -83,7 +87,7 @@ def motor_test_run(
             joint=joint_name,
             metadata=metadata or {},
         ) as recorder:
-            if on_status is not None:
+            if on_status is not None and test not in _TESTS_WITHOUT_LIVE_STATUS:
                 poller = _start_status_poller(connected_joint, on_status, stop_event)
             yield connected_joint, recorder
     finally:

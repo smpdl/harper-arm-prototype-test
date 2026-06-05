@@ -5,22 +5,25 @@ from __future__ import annotations
 from pathlib import Path
 
 from dynamixel_sdk import COMM_SUCCESS
-from dynio import DynamixelIO
 
-from harper_arm.joint import DEFAULT_CONFIG_PATH
+from harper_arm.joint import DEFAULT_CONFIG_PATH, Joint
 
 from .helpers import DEFAULT_RESULTS_ROOT, StatusCallback, motor_test_run, utc_now
 
 
-def ping_joint(io: DynamixelIO, motor_id: int, protocol: int) -> tuple[bool, str]:
+def ping_joint(connected_joint: Joint) -> tuple[bool, str]:
     """Ping one motor on the bus and return whether it responded."""
-    handler = io.packet_handler[protocol - 1]
-    model_number, comm_result, dxl_error = handler.ping(io.port_handler, motor_id)
-    if comm_result != COMM_SUCCESS:
-        return False, handler.getTxRxResult(comm_result)
-    if dxl_error != 0:
-        return False, handler.getRxPacketError(dxl_error)
-    return True, f"model {model_number}"
+    with connected_joint.bus_lock:
+        io = connected_joint.io
+        motor_id = connected_joint.joint.id
+        protocol = connected_joint.joint.protocol
+        handler = io.packet_handler[protocol - 1]
+        model_number, comm_result, dxl_error = handler.ping(io.port_handler, motor_id)
+        if comm_result != COMM_SUCCESS:
+            return False, handler.getTxRxResult(comm_result)
+        if dxl_error != 0:
+            return False, handler.getRxPacketError(dxl_error)
+        return True, f"model {model_number}"
 
 def run(
     *,
@@ -37,11 +40,7 @@ def run(
         results_root=results_root,
         on_status=on_status,
     ) as (connected_joint, recorder):
-        success, message = ping_joint(
-            connected_joint.io,
-            connected_joint.joint.id,
-            connected_joint.joint.protocol,
-        )
+        success, message = ping_joint(connected_joint)
         recorder.write_row(
             {
                 "timestamp_utc": utc_now().isoformat(),
