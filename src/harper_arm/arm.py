@@ -58,6 +58,7 @@ class FullArm:
         """Configure the position mode for all the joints."""
         with self.bus_lock:
             for name, motor in self.motors.items():
+                motor.torque_disable()
                 configure_joint_position_mode(motor, self.config.joints[name])
 
     def apply_position_profile_velocities(self) -> None:

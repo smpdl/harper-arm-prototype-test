@@ -41,6 +41,8 @@ MOTOR_MOTION_TESTS: tuple[str, ...] = (
     "thermal_rise",
 )
 
+MOTOR_WHOLE_ARM_TESTS: tuple[str, ...] = ("position_accuracy",)
+
 MOTOR_POSITION_TESTS: tuple[str, ...] = (
     "power_on_response",
     "position_accuracy",

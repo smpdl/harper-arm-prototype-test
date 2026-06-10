@@ -36,7 +36,7 @@ def _read_joint_sample_from_motor(motor: DynamixelMotor, *, joint: str) -> Joint
         joint=joint,
         position=int(motor.read_control_table("Present_Position")),
         velocity=int(motor.read_control_table("Present_Velocity")),
-        current=int(motor.read_control_table("Present_Current")),
+        current=int(motor.get_current()),
         temperature=int(motor.read_control_table("Present_Temperature")),
         voltage=int(motor.read_control_table("Present_Input_Voltage")),
     )

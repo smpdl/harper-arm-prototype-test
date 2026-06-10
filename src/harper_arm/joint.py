@@ -39,7 +39,7 @@ class Joint:
     motor: DynamixelMotor
     joint: JointConfig
     bus_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
-    _owns_bus: bool = field(default=True, repr=False)
+    _owns_bus: bool = field(default=True, repr=False) 
 
     @classmethod
     def open(
@@ -71,6 +71,7 @@ class Joint:
 
     def configure_position_mode(self) -> None:
         with self.bus_lock:
+            self.motor.torque_disable()
             configure_joint_position_mode(self.motor, self.joint)
 
     def set_profile_velocity_rpm(self, rpm: float) -> None:
@@ -78,9 +79,20 @@ class Joint:
         with self.bus_lock:
             self.motor.set_velocity(units.rpm_to_velocity(rpm))
 
-    def configure_velocity_mode(self, *, goal_current: int | None = None) -> None:
+    def configure_velocity_mode(
+        self,
+        *,
+        goal_current: int | None = None,
+        enable_torque: bool = True,
+    ) -> None:
+        """Switch to velocity mode. Torque is disabled while mode registers are written."""
         with self.bus_lock:
-            self.motor.set_velocity_mode(goal_current=goal_current)
+            self.motor.torque_disable()
+            self.motor.set_velocity_mode()
+            if goal_current is not None and "Goal_Current" in self.motor.CONTROL_TABLE:
+                self.motor.write_control_table("Goal_Current", goal_current)
+            if enable_torque:
+                self.motor.torque_enable()
 
     def torque_enable(self) -> None:
         with self.bus_lock:

@@ -21,7 +21,7 @@ from harper_arm.logging import TestRun
 from harper_arm.motor import POSITION_TOLERANCE_TICKS, move_to_ticks
 from harper_arm.sampling import JointSample, read_joint_sample
 from harper_arm.status import MotorStatus, read_motor_status
-from tui.suite_catalog import MOTOR_MOTION_TESTS
+from tui.suite_catalog import MOTOR_MOTION_TESTS, MOTOR_POSITION_TESTS, MOTOR_WHOLE_ARM_TESTS
 
 DEFAULT_MOTIONS_PATH = Path("config/motions.yaml")
 DEFAULT_BASE_POSE = "home"
@@ -198,11 +198,11 @@ def motor_test_run(
 ) -> Iterator[tuple[Joint, TestRun]]:
     """Open hardware, record a motor-suite run, and tear down on exit.
 
-    Motion tests open the full bus, move to base pose, run the test, return to
-    base pose, then torque off all servos on teardown. Read-only tests open
-    only the joint under test.
+    Position accuracy opens the full bus, torques every joint, moves to base
+    pose, and returns there on teardown. Other motion tests open only the joint
+    under test. Read-only tests do the same without motion setup.
     """
-    if test in MOTOR_MOTION_TESTS:
+    if test in MOTOR_WHOLE_ARM_TESTS:
         arm = FullArm.open(config_path=config_path)
         try:
             arm.prepare_motion_bus(
@@ -229,6 +229,12 @@ def motor_test_run(
 
     connected_joint = Joint.open(joint_name=joint_name, config_path=config_path)
     try:
+        if test in MOTOR_MOTION_TESTS and test in MOTOR_POSITION_TESTS:
+            configure_position_motion(
+                connected_joint,
+                profile_velocity_rpm=profile_velocity_rpm,
+            )
+            connected_joint.torque_enable()
         yield from _run_with_joint(
             connected_joint=connected_joint,
             test=test,
