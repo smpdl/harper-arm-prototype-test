@@ -18,6 +18,24 @@ CURRENT_CONTROL_MODE = 0
 PWM_CONTROL_MODE = 16
 
 
+def _read_register(motor: DynamixelMotor, name: str) -> int:
+    return int(motor.read_control_table(name))
+
+
+def _require_register(
+    motor: DynamixelMotor,
+    name: str,
+    expected: int,
+    *,
+    joint_name: str,
+) -> None:
+    actual = _read_register(motor, name)
+    if actual != expected:
+        raise RuntimeError(
+            f"{joint_name}: failed to set {name} to {expected} (read back {actual})"
+        )
+
+
 def configure_joint_position_mode(motor: DynamixelMotor, joint: JointConfig) -> None:
     """Configure the joint in position mode.
 
@@ -103,21 +121,64 @@ class Joint:
 
         with self.bus_lock:
             self.motor.torque_disable()
+            if "Hardware_Error_Status" in self.motor.CONTROL_TABLE:
+                error = _read_register(self.motor, "Hardware_Error_Status")
+                if error:
+                    raise RuntimeError(
+                        f"{self.joint_name}: hardware error status 0x{error:02x}; "
+                        "power-cycle the motor before running thermal rise"
+                    )
             table = self.motor.CONTROL_TABLE
 
             if "Goal_Current" in table:
                 goal_current = int(round(self.joint.current_limit * load_fraction))
                 self.motor.write_control_table("Operating_Mode", CURRENT_CONTROL_MODE)
-                self.motor.write_control_table("Goal_Current", goal_current)
                 self.motor.torque_enable()
+                self.motor.write_control_table("Goal_Current", goal_current)
+                _require_register(
+                    self.motor,
+                    "Operating_Mode",
+                    CURRENT_CONTROL_MODE,
+                    joint_name=self.joint_name,
+                )
+                _require_register(
+                    self.motor,
+                    "Torque_Enable",
+                    1,
+                    joint_name=self.joint_name,
+                )
+                _require_register(
+                    self.motor,
+                    "Goal_Current",
+                    goal_current,
+                    joint_name=self.joint_name,
+                )
                 return {"mode": "current", "goal_current": goal_current}
 
             if "Goal_PWM" in table:
                 pwm_limit = int(self.motor.read_control_table("PWM_Limit"))
                 goal_pwm = int(round(load_fraction * pwm_limit))
                 self.motor.write_control_table("Operating_Mode", PWM_CONTROL_MODE)
-                self.motor.write_control_table("Goal_PWM", goal_pwm)
                 self.motor.torque_enable()
+                self.motor.write_control_table("Goal_PWM", goal_pwm)
+                _require_register(
+                    self.motor,
+                    "Operating_Mode",
+                    PWM_CONTROL_MODE,
+                    joint_name=self.joint_name,
+                )
+                _require_register(
+                    self.motor,
+                    "Torque_Enable",
+                    1,
+                    joint_name=self.joint_name,
+                )
+                _require_register(
+                    self.motor,
+                    "Goal_PWM",
+                    goal_pwm,
+                    joint_name=self.joint_name,
+                )
                 return {
                     "mode": "pwm",
                     "goal_pwm": goal_pwm,
