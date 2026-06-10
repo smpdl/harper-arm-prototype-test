@@ -64,6 +64,19 @@ def current_to_ma(current: int, *, model: str) -> float:
     return current * current_ma_per_unit(model)
 
 
+def thermal_sample_current_ma(
+    current: int,
+    *,
+    model: str,
+    current_limit: int,
+) -> float:
+    """Convert thermal-rise telemetry to milliamps (XL430 uses Present_Load in 0.1%)."""
+    name = _normalize_model(model)
+    if "xl430" in name:
+        return abs(current) * 0.1 / 100.0 * current_limit
+    return current_to_ma(current, model=model)
+
+
 def position_error_deg(measured_ticks: int, reference_ticks: int) -> float:
     """Signed position error in degrees (measured minus reference)."""
     return ticks_to_degrees(measured_ticks - reference_ticks)

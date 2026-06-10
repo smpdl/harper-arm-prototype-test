@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from dynio import DynamixelIO, DynamixelMotor
 
@@ -11,6 +13,9 @@ from harper_arm.config import ArmConfig, JointConfig, load_arm_config
 from harper_arm.motor import connect_io, disconnect_io, new_motor
 
 DEFAULT_CONFIG_PATH = Path("config/arm.yaml")
+
+CURRENT_CONTROL_MODE = 0
+PWM_CONTROL_MODE = 16
 
 
 def configure_joint_position_mode(motor: DynamixelMotor, joint: JointConfig) -> None:
@@ -79,20 +84,57 @@ class Joint:
         with self.bus_lock:
             self.motor.set_velocity(units.rpm_to_velocity(rpm))
 
-    def configure_velocity_mode(
-        self,
-        *,
-        goal_current: int | None = None,
-        enable_torque: bool = True,
-    ) -> None:
+    def configure_velocity_mode(self, *, enable_torque: bool = True) -> None:
         """Switch to velocity mode. Torque is disabled while mode registers are written."""
         with self.bus_lock:
             self.motor.torque_disable()
             self.motor.set_velocity_mode()
-            if goal_current is not None and "Goal_Current" in self.motor.CONTROL_TABLE:
-                self.motor.write_control_table("Goal_Current", goal_current)
             if enable_torque:
                 self.motor.torque_enable()
+
+    def apply_thermal_load(self, *, load_fraction: float) -> Mapping[str, Any]:
+        """Apply sustained load at ``load_fraction`` of arm.yaml ``current_limit``.
+
+        XM/XC motors use current control mode (Goal Current). XL430 uses PWM mode
+        because it has no Goal Current register.
+        """
+        if not 0 < load_fraction <= 1:
+            raise ValueError("load_fraction must be in (0, 1].")
+
+        with self.bus_lock:
+            self.motor.torque_disable()
+            table = self.motor.CONTROL_TABLE
+
+            if "Goal_Current" in table:
+                goal_current = int(round(self.joint.current_limit * load_fraction))
+                self.motor.write_control_table("Operating_Mode", CURRENT_CONTROL_MODE)
+                self.motor.write_control_table("Goal_Current", goal_current)
+                self.motor.torque_enable()
+                return {"mode": "current", "goal_current": goal_current}
+
+            if "Goal_PWM" in table:
+                pwm_limit = int(self.motor.read_control_table("PWM_Limit"))
+                goal_pwm = int(round(load_fraction * pwm_limit))
+                self.motor.write_control_table("Operating_Mode", PWM_CONTROL_MODE)
+                self.motor.write_control_table("Goal_PWM", goal_pwm)
+                self.motor.torque_enable()
+                return {
+                    "mode": "pwm",
+                    "goal_pwm": goal_pwm,
+                    "pwm_limit": pwm_limit,
+                }
+
+            raise RuntimeError(
+                f"joint {self.joint_name!r} ({self.joint.model}) does not support thermal load"
+            )
+
+    def release_thermal_load(self) -> None:
+        with self.bus_lock:
+            table = self.motor.CONTROL_TABLE
+            if "Goal_Current" in table:
+                self.motor.write_control_table("Goal_Current", 0)
+            elif "Goal_PWM" in table:
+                self.motor.write_control_table("Goal_PWM", 0)
 
     def torque_enable(self) -> None:
         with self.bus_lock:
