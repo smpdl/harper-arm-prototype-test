@@ -1,4 +1,11 @@
-"""Read Present_Temperature for one joint."""
+"""
+Present Temperature Test.
+
+Reads the present temperature of a motor using the Present_Temperature control table.
+
+Reads the present temperature of a motor and writes a row to the results CSV file with the timestamp, joint name, and temperature.
+Sets the summary to the temperature. Returns the path to the results directory.
+"""
 
 from __future__ import annotations
 

@@ -3,20 +3,28 @@
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from harper_arm.arm import FullArm
-from harper_arm.config import JointConfig, resolve_position_profile_velocity_rpm
+from harper_arm.config import (
+    load_arm_config,
+    load_motions_config,
+    resolve_pose,
+    resolve_position_profile_velocity_rpm,
+)
 from harper_arm.joint import DEFAULT_CONFIG_PATH, Joint
 from harper_arm.logging import TestRun
+from harper_arm.motor import POSITION_TOLERANCE_TICKS, move_to_ticks
 from harper_arm.sampling import JointSample, read_joint_sample
 from harper_arm.status import MotorStatus, read_motor_status
 from tui.suite_catalog import MOTOR_MOTION_TESTS
 
+DEFAULT_MOTIONS_PATH = Path("config/motions.yaml")
+DEFAULT_BASE_POSE = "home"
 DEFAULT_RESULTS_ROOT = Path("results")
 STATUS_POLL_INTERVAL_S = 0.25
 # Quick single-shot reads; live polling would race on the serial port.
@@ -44,14 +52,80 @@ def configure_position_motion(
     return rpm
 
 
-def sweep_waypoints(joint: JointConfig, *, steps: int) -> list[int]:
-    low, high = joint.position_limits
-    if steps < 2:
-        return [low]
-    return [
-        int(round(low + index * (high - low) / (steps - 1)))
-        for index in range(steps)
-    ]
+def load_base_pose_ticks(
+    pose_name: str = DEFAULT_BASE_POSE,
+    *,
+    config_path: Path | str = DEFAULT_CONFIG_PATH,
+    motions_path: Path | str = DEFAULT_MOTIONS_PATH,
+) -> dict[str, int]:
+    arm_config = load_arm_config(config_path)
+    motions = load_motions_config(motions_path)
+    return resolve_pose(motions, pose_name, arm=arm_config)
+
+
+def at_base_position(
+    arm: FullArm,
+    pose: Mapping[str, int],
+    *,
+    tolerance_ticks: int = POSITION_TOLERANCE_TICKS,
+) -> bool:
+    samples = arm.sample()
+    return all(
+        abs(samples[joint_name].position - target_ticks) <= tolerance_ticks
+        for joint_name, target_ticks in pose.items()
+    )
+
+
+def move_arm_to_pose(
+    arm: FullArm,
+    pose: Mapping[str, int],
+) -> dict[str, tuple[bool, int]]:
+    return {
+        joint_name: move_to_ticks(arm, target_ticks, joint_name=joint_name)
+        for joint_name, target_ticks in pose.items()
+    }
+
+
+def ensure_base_position(
+    arm: FullArm,
+    *,
+    config_path: Path | str = DEFAULT_CONFIG_PATH,
+    motions_path: Path | str = DEFAULT_MOTIONS_PATH,
+    pose_name: str = DEFAULT_BASE_POSE,
+) -> None:
+    """Verify the arm is at base pose, moving there first when needed."""
+    pose = load_base_pose_ticks(
+        pose_name,
+        config_path=config_path,
+        motions_path=motions_path,
+    )
+    if at_base_position(arm, pose):
+        return
+    results = move_arm_to_pose(arm, pose)
+    if not all(reached for reached, _ in results.values()):
+        raise RuntimeError("failed to reach base position before motion test")
+
+
+def return_to_base_position(
+    arm: FullArm,
+    *,
+    config_path: Path | str = DEFAULT_CONFIG_PATH,
+    motions_path: Path | str = DEFAULT_MOTIONS_PATH,
+    pose_name: str = DEFAULT_BASE_POSE,
+) -> None:
+    """Reconfigure position mode and move every joint back to base pose."""
+    arm.configure_position_mode()
+    arm.apply_position_profile_velocities()
+    arm.torque_enable_all()
+    pose = load_base_pose_ticks(
+        pose_name,
+        config_path=config_path,
+        motions_path=motions_path,
+    )
+    results = move_arm_to_pose(arm, pose)
+    if not all(reached for reached, _ in results.values()):
+        raise RuntimeError("failed to return to base position after motion test")
+
 
 RowFields = Callable[[JointSample, Joint], dict[str, object]]
 SummaryFields = Callable[[JointSample, Joint], dict[str, object]]
@@ -124,8 +198,9 @@ def motor_test_run(
 ) -> Iterator[tuple[Joint, TestRun]]:
     """Open hardware, record a motor-suite run, and tear down on exit.
 
-    Motion tests open the full bus, ensure torque on every servo, and torque
-    off all servos on teardown. Read-only tests open only the joint under test.
+    Motion tests open the full bus, move to base pose, run the test, return to
+    base pose, then torque off all servos on teardown. Read-only tests open
+    only the joint under test.
     """
     if test in MOTOR_MOTION_TESTS:
         arm = FullArm.open(config_path=config_path)
@@ -134,16 +209,20 @@ def motor_test_run(
                 joint_name=joint_name,
                 profile_velocity_rpm=profile_velocity_rpm,
             )
+            ensure_base_position(arm, config_path=config_path)
             connected_joint = arm.joint_view(joint_name)
-            yield from _run_with_joint(
-                connected_joint=connected_joint,
-                test=test,
-                schema=schema,
-                joint_name=joint_name,
-                results_root=results_root,
-                metadata=metadata,
-                on_status=on_status,
-            )
+            try:
+                yield from _run_with_joint(
+                    connected_joint=connected_joint,
+                    test=test,
+                    schema=schema,
+                    joint_name=joint_name,
+                    results_root=results_root,
+                    metadata=metadata,
+                    on_status=on_status,
+                )
+            finally:
+                return_to_base_position(arm, config_path=config_path)
         finally:
             arm.close()
         return

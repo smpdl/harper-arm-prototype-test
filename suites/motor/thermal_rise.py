@@ -1,4 +1,12 @@
-"""Hold ~50% goal current and sample temperature periodically."""
+"""
+Thermal Rise Test.
+
+Holds a joint at 80% of the current limit and samples the temperature and current periodically. 
+Runs at 20 RPM for 5 minutes.
+
+Writes a row to the results CSV file with the timestamp, joint name, elapsed time, temperature, current, and current in mA.
+Sets the summary to the peak temperature, goal current, and duration. Returns the path to the results directory.
+"""
 
 from __future__ import annotations
 
@@ -11,10 +19,10 @@ from harper_arm.sampling import read_joint_sample
 
 from .helpers import DEFAULT_RESULTS_ROOT, StatusCallback, motor_test_run, utc_now
 
-DEFAULT_DURATION_S = 120.0
-DEFAULT_INTERVAL_S = 1.0
-LOAD_FRACTION = 0.5
-
+DEFAULT_DURATION_S = 300.0 # 5 minutes
+DEFAULT_INTERVAL_S = 1.0 # 1 second
+LOAD_FRACTION = 0.8 # 80% of the joint current limit
+RPM = 20.0 # 20 RPM
 
 def run(
     *,
@@ -41,7 +49,7 @@ def run(
     ) as (connected_joint, recorder):
         goal_current = int(round(connected_joint.joint.current_limit * load_fraction))
         connected_joint.configure_velocity_mode(goal_current=goal_current)
-        connected_joint.set_velocity(units.rpm_to_velocity(5.0))
+        connected_joint.set_velocity(units.rpm_to_velocity(RPM))
 
         started = time.monotonic()
         deadline = started + duration_s

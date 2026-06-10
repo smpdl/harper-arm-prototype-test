@@ -16,7 +16,6 @@ from . import (
     power_on_response,
     present_temperature,
     present_voltage,
-    range_of_motion,
     thermal_rise,
     velocity_tracking,
 )
@@ -30,7 +29,6 @@ MOTOR_TESTS: dict[str, RunFn] = {
     "present_temperature": present_temperature.run,
     "current_no_load": current_no_load.run,
     "power_on_response": power_on_response.run,
-    "range_of_motion": range_of_motion.run,
     "position_accuracy": position_accuracy.run,
     "velocity_tracking": velocity_tracking.run,
     "thermal_rise": thermal_rise.run,

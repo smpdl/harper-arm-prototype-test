@@ -1,7 +1,22 @@
-"""Move to nominal angles and record position error (10 trials per target)."""
+"""
+Position Accuracy Test.
+
+Moves a motor through target angle ranges and records the position error for each step.
+
+Each trial sweeps 0 -> 45 -> 90 -> 135 -> 180, then repeats for the configured number
+of trials (default 10).
+
+Note that the target angles are not actual angles, but rather fractions of the configured
+position range. For example, 45.0 means minimum position limit + 45/180 of the span.
+
+Writes a row to the results CSV file with the timestamp, joint name, trial number, target angle, 
+measured angle, and position error. Sets the summary to the maximum absolute position error, 
+the mean absolute position error, and the success flag. Returns the path to the results directory.
+"""
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from harper_arm import units
@@ -12,6 +27,7 @@ from harper_arm.motor import move_to_ticks
 from .helpers import DEFAULT_RESULTS_ROOT, StatusCallback, motor_test_run, utc_now
 
 DEFAULT_TRIALS = 10
+STEP_PAUSE_S = 3.0
 TARGET_ANGLES_DEG = (0.0, 45.0, 90.0, 135.0, 180.0)
 
 def _target_ticks_for_angle(joint: JointConfig, angle_deg: float) -> int:
@@ -39,6 +55,7 @@ def run(
         results_root=results_root,
         metadata={
             "trials_per_target": trials,
+            "step_pause_s": STEP_PAUSE_S,
             "profile_velocity_rpm": profile_velocity_rpm,
         },
         on_status=on_status,
@@ -51,9 +68,9 @@ def run(
         errors: list[float] = []
         reached_all = True
 
-        for target_deg in TARGET_ANGLES_DEG:
-            goal_ticks = _target_ticks_for_angle(connected_joint.joint, target_deg)
-            for trial in range(1, trials + 1):
+        for trial in range(1, trials + 1):
+            for target_deg in TARGET_ANGLES_DEG:
+                goal_ticks = _target_ticks_for_angle(connected_joint.joint, target_deg)
                 reached, measured_ticks = move_to_ticks(connected_joint, goal_ticks)
                 reached_all = reached_all and reached
                 error_deg = units.position_error_deg(measured_ticks, goal_ticks)
@@ -69,6 +86,7 @@ def run(
                         "error_deg": error_deg,
                     }
                 )
+                time.sleep(STEP_PAUSE_S)
 
         recorder.set_summary(
             success=reached_all,

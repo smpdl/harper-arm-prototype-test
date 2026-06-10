@@ -36,7 +36,6 @@ MOTOR_READ_ONLY_TESTS: tuple[str, ...] = (
 
 MOTOR_MOTION_TESTS: tuple[str, ...] = (
     "power_on_response",
-    "range_of_motion",
     "position_accuracy",
     "velocity_tracking",
     "thermal_rise",
@@ -44,7 +43,6 @@ MOTOR_MOTION_TESTS: tuple[str, ...] = (
 
 MOTOR_POSITION_TESTS: tuple[str, ...] = (
     "power_on_response",
-    "range_of_motion",
     "position_accuracy",
 )
 
@@ -74,16 +72,7 @@ def _motor_fields(test: str) -> tuple[FieldSpec, ...]:
             )
         )
 
-    if test == "range_of_motion":
-        fields.append(
-            FieldSpec(
-                "steps",
-                "Steps",
-                "int",
-                placeholder="Waypoints across position limits",
-            )
-        )
-    elif test == "position_accuracy":
+    if test == "position_accuracy":
         fields.append(
             FieldSpec(
                 "trials",

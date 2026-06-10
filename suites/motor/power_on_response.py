@@ -1,4 +1,11 @@
-"""Enable torque and command a +10° position step."""
+"""
+Power On Response Test. 
+
+Enables torque and commands a +10deg position step.
+
+Writes a row to the results CSV file with the timestamp, joint name, start position, end position, delta position, duration, and success flag.
+Sets the summary to the profile velocity, success flag, start position, end position, and delta position. Returns the path to the results directory.
+"""
 
 from __future__ import annotations
 
@@ -13,6 +20,7 @@ from harper_arm.motor import move_to_ticks
 from .helpers import DEFAULT_RESULTS_ROOT, StatusCallback, motor_test_run, utc_now
 
 POWER_ON_DELTA_DEG = 10.0
+PRE_RETURN_PAUSE_S = 3.0
 
 
 def run(
@@ -31,6 +39,7 @@ def run(
         results_root=results_root,
         metadata={
             "delta_deg": POWER_ON_DELTA_DEG,
+            "pre_return_pause_s": PRE_RETURN_PAUSE_S,
             "profile_velocity_rpm": profile_velocity_rpm,
         },
         on_status=on_status,
@@ -72,4 +81,5 @@ def run(
             delta_deg=delta_deg,
             duration_s=duration_s,
         )
+        time.sleep(PRE_RETURN_PAUSE_S)
         return recorder.run_dir

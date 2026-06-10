@@ -220,3 +220,6 @@ __marimo__/
 # Local run artifacts
 results/*
 !results/.gitkeep
+
+# Visual Studio Code
+.vscode/

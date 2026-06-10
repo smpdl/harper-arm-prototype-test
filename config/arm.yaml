@@ -35,6 +35,7 @@ joints:
     protocol: 2
     position_limits: [0, 4095]
     current_limit: 2045
+    position_profile_velocity_rpm: 12
   r_sh_abd:
     id: 2
     model: xm540-w270-t

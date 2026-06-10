@@ -207,17 +207,6 @@ SCHEMAS: dict[str, CsvSchema] = {
             "success",
         ),
     ),
-    "range_of_motion": CsvSchema(
-        "range_of_motion",
-        (
-            "timestamp_utc",
-            "joint",
-            "waypoint_index",
-            "target_ticks",
-            "measured_ticks",
-            "measured_deg",
-        ),
-    ),
     "position_accuracy": CsvSchema(
         "position_accuracy",
         (

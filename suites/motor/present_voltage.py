@@ -1,4 +1,11 @@
-"""Read Present_Input_Voltage for one joint."""
+"""
+Present Voltage Test.
+
+Reads the present voltage of a motor using the Present_Input_Voltage control table.
+
+Reads the present voltage of a motor and writes a row to the results CSV file with the timestamp, joint name, and voltage.
+Sets the summary to the voltage. Returns the path to the results directory.
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,11 @@
-"""Step through a velocity profile and compare measured RPM."""
+"""
+Velocity Tracking Test.
+
+Steps through a velocity profile and compares measured RPM. 
+
+Writes a row to the results CSV file with the timestamp, joint name, step index, target RPM, measured RPM, and error RPM.
+Sets the summary to the maximum absolute error RPM and the mean absolute error RPM. Returns the path to the results directory.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +17,7 @@ from harper_arm.joint import DEFAULT_CONFIG_PATH
 
 from .helpers import DEFAULT_RESULTS_ROOT, StatusCallback, motor_test_run, utc_now
 
-STEP_HOLD_S = 1.5
+STEP_HOLD_S = 3
 TARGET_RPMS = (0.0, 5.0, 10.0, -5.0, 0.0)
 
 

@@ -21,6 +21,8 @@ class FullArm:
     config: ArmConfig
     io: DynamixelIO
     motors: Mapping[str, DynamixelMotor]
+    # this is a lock to syncronize access to the bus (e.g. reading/writing registers).
+    # Read-Modify-Write operations should be atomic.
     bus_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     @classmethod
@@ -68,16 +70,20 @@ class FullArm:
     def torque_enable_all(self) -> None:
         """Torque enable all the motors."""
         with self.bus_lock:
-            for motor in self.motors.values():
-                motor.torque_enable()
-
-    def ensure_torque_enabled_all(self) -> None:
-        """Enable and verify torque on every motor."""
-        with self.bus_lock:
             ensure_torque_enabled_all(self.motors)
 
     def joint_view(self, joint_name: str) -> Joint:
-        """Return a single-joint view that shares this bus connection."""
+        """
+        Return a single-joint view that shares this bus connection.
+        This was designed to be used for motion tests that need to operate on a single joint
+        without needing to open a new serial connection.
+        
+        Args:
+            joint_name: The name of the joint to return a view of.
+
+        Returns:
+            A Joint object that shares this bus connection.         
+        """
         try:
             joint_cfg = self.config.joints[joint_name]
         except KeyError as exc:
@@ -90,7 +96,7 @@ class FullArm:
             motor=self.motors[joint_name],
             joint=joint_cfg,
             bus_lock=self.bus_lock,
-            _owns_bus=False,
+            _owns_bus=False, # this joint does not own the bus connection, it is shared with the full arm.
         )
 
     def prepare_motion_bus(
@@ -107,7 +113,7 @@ class FullArm:
                 self.motors[joint_name].set_velocity(
                     units.rpm_to_velocity(profile_velocity_rpm)
                 )
-        self.ensure_torque_enabled_all()
+        self.torque_enable_all()
 
     def joint_models(self) -> dict[str, str]:
         """Get the models of all the joints."""

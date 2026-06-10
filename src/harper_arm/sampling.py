@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from dynio import DynamixelMotor
+
     from harper_arm.joint import Joint
 
 RegisterReader = Callable[[], dict[str, "JointSample"]]
@@ -35,7 +36,7 @@ def _read_joint_sample_from_motor(motor: DynamixelMotor, *, joint: str) -> Joint
         joint=joint,
         position=int(motor.read_control_table("Present_Position")),
         velocity=int(motor.read_control_table("Present_Velocity")),
-        current=int(motor.get_current()),
+        current=int(motor.read_control_table("Present_Current")),
         temperature=int(motor.read_control_table("Present_Temperature")),
         voltage=int(motor.read_control_table("Present_Input_Voltage")),
     )
