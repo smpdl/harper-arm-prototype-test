@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from harper_arm import units
-from harper_arm.config import JointConfig
+from harper_arm.config import JointConfig, resolve_position_profile_velocity_rpm
 from harper_arm.joint import DEFAULT_CONFIG_PATH
 from harper_arm.motor import move_to_ticks
 
@@ -29,6 +29,7 @@ def run(
     results_root: Path = DEFAULT_RESULTS_ROOT,
     trials: int = DEFAULT_TRIALS,
     on_status: StatusCallback | None = None,
+    profile_velocity_rpm: float | None = None,
 ) -> Path:
     with motor_test_run(
         test="position_accuracy",
@@ -36,11 +37,17 @@ def run(
         joint_name=joint,
         config_path=config_path,
         results_root=results_root,
-        metadata={"trials_per_target": trials},
+        metadata={
+            "trials_per_target": trials,
+            "profile_velocity_rpm": profile_velocity_rpm,
+        },
         on_status=on_status,
+        profile_velocity_rpm=profile_velocity_rpm,
     ) as (connected_joint, recorder):
-        connected_joint.configure_position_mode()
-        connected_joint.torque_enable()
+        applied_rpm = resolve_position_profile_velocity_rpm(
+            connected_joint.joint,
+            override_rpm=profile_velocity_rpm,
+        )
         errors: list[float] = []
         reached_all = True
 
@@ -65,6 +72,7 @@ def run(
 
         recorder.set_summary(
             success=reached_all,
+            profile_velocity_rpm=applied_rpm,
             max_abs_error_deg=max(errors) if errors else None,
             mean_abs_error_deg=(sum(errors) / len(errors)) if errors else None,
         )

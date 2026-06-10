@@ -100,7 +100,8 @@ def prepare_hold_pose(
     pose: Mapping[str, int],
 ) -> tuple[bool, dict[str, tuple[bool, int]]]:
     arm.configure_position_mode()
-    arm.torque_enable_all()
+    arm.apply_position_profile_velocities()
+    arm.ensure_torque_enabled_all()
     move_results = move_to_pose(arm, pose)
     reached_all = all(reached for reached, _ in move_results.values())
     return reached_all, move_results

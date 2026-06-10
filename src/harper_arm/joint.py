@@ -6,6 +6,7 @@ from pathlib import Path
 
 from dynio import DynamixelIO, DynamixelMotor
 
+from harper_arm import units
 from harper_arm.config import ArmConfig, JointConfig, load_arm_config
 from harper_arm.motor import connect_io, disconnect_io, new_motor
 
@@ -38,6 +39,7 @@ class Joint:
     motor: DynamixelMotor
     joint: JointConfig
     bus_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    _owns_bus: bool = field(default=True, repr=False)
 
     @classmethod
     def open(
@@ -58,6 +60,8 @@ class Joint:
         return cls(config=config, joint_name=joint_name, io=io, motor=motor, joint=joint)
 
     def close(self) -> None:
+        if not self._owns_bus:
+            return
         with self.bus_lock:
             try:
                 self.motor.torque_disable()
@@ -68,6 +72,11 @@ class Joint:
     def configure_position_mode(self) -> None:
         with self.bus_lock:
             configure_joint_position_mode(self.motor, self.joint)
+
+    def set_profile_velocity_rpm(self, rpm: float) -> None:
+        """Set Profile_Velocity for position-mode moves (lower rpm = slower motion)."""
+        with self.bus_lock:
+            self.motor.set_velocity(units.rpm_to_velocity(rpm))
 
     def configure_velocity_mode(self, *, goal_current: int | None = None) -> None:
         with self.bus_lock:

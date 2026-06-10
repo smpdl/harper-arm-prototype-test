@@ -169,3 +169,33 @@ def torque_off_all(motors: Mapping[str, DynamixelMotor]) -> None:
     """Torque off all the motors."""
     for motor in motors.values():
         motor.torque_disable()
+
+
+def verify_torque_enabled_all(motors: Mapping[str, DynamixelMotor]) -> list[str]:
+    """Return joint names where ``Torque_Enable`` is not set.
+
+    Caller must hold the bus lock when motors share one serial port.
+    """
+    disabled: list[str] = []
+    for name, motor in motors.items():
+        try:
+            enabled = bool(int(motor.read_control_table("Torque_Enable")))
+        except Exception:
+            disabled.append(name)
+            continue
+        if not enabled:
+            disabled.append(name)
+    return disabled
+
+
+def ensure_torque_enabled_all(motors: Mapping[str, DynamixelMotor]) -> None:
+    """Enable torque on every motor and verify the register readback.
+
+    Caller must hold the bus lock when motors share one serial port.
+    """
+    for motor in motors.values():
+        motor.torque_enable()
+    disabled = verify_torque_enabled_all(motors)
+    if disabled:
+        joined = ", ".join(disabled)
+        raise RuntimeError(f"torque enable failed for joints: {joined}")

@@ -9,11 +9,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from harper_arm.config import JointConfig
+from harper_arm.arm import FullArm
+from harper_arm.config import JointConfig, resolve_position_profile_velocity_rpm
 from harper_arm.joint import DEFAULT_CONFIG_PATH, Joint
 from harper_arm.logging import TestRun
 from harper_arm.sampling import JointSample, read_joint_sample
 from harper_arm.status import MotorStatus, read_motor_status
+from tui.suite_catalog import MOTOR_MOTION_TESTS
 
 DEFAULT_RESULTS_ROOT = Path("results")
 STATUS_POLL_INTERVAL_S = 0.25
@@ -25,6 +27,21 @@ _TESTS_WITHOUT_LIVE_STATUS = frozenset(
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+def configure_position_motion(
+    connected_joint: Joint,
+    *,
+    profile_velocity_rpm: float | None = None,
+) -> float:
+    """Configure position mode and apply per-joint profile velocity (rpm)."""
+    rpm = resolve_position_profile_velocity_rpm(
+        connected_joint.joint,
+        override_rpm=profile_velocity_rpm,
+    )
+    connected_joint.configure_position_mode()
+    connected_joint.set_profile_velocity_rpm(rpm)
+    return rpm
 
 
 def sweep_waypoints(joint: JointConfig, *, steps: int) -> list[int]:
@@ -63,6 +80,36 @@ def _start_status_poller(
     return thread
 
 
+def _run_with_joint(
+    *,
+    connected_joint: Joint,
+    test: str,
+    schema: str,
+    joint_name: str,
+    results_root: Path,
+    metadata: dict[str, Any] | None,
+    on_status: StatusCallback | None,
+) -> Iterator[tuple[Joint, TestRun]]:
+    stop_event = threading.Event()
+    poller: threading.Thread | None = None
+    with TestRun(
+        suite="motor",
+        test=test,
+        schema=schema,
+        results_root=results_root,
+        joint=joint_name,
+        metadata=metadata or {},
+    ) as recorder:
+        if on_status is not None and test not in _TESTS_WITHOUT_LIVE_STATUS:
+            poller = _start_status_poller(connected_joint, on_status, stop_event)
+        try:
+            yield connected_joint, recorder
+        finally:
+            stop_event.set()
+            if poller is not None:
+                poller.join(timeout=STATUS_POLL_INTERVAL_S * 2)
+
+
 @contextmanager
 def motor_test_run(
     *,
@@ -73,27 +120,46 @@ def motor_test_run(
     results_root: Path = DEFAULT_RESULTS_ROOT,
     metadata: dict[str, Any] | None = None,
     on_status: StatusCallback | None = None,
+    profile_velocity_rpm: float | None = None,
 ) -> Iterator[tuple[Joint, TestRun]]:
-    """Open one joint, record a motor-suite run, and tear down on exit."""
+    """Open hardware, record a motor-suite run, and tear down on exit.
+
+    Motion tests open the full bus, ensure torque on every servo, and torque
+    off all servos on teardown. Read-only tests open only the joint under test.
+    """
+    if test in MOTOR_MOTION_TESTS:
+        arm = FullArm.open(config_path=config_path)
+        try:
+            arm.prepare_motion_bus(
+                joint_name=joint_name,
+                profile_velocity_rpm=profile_velocity_rpm,
+            )
+            connected_joint = arm.joint_view(joint_name)
+            yield from _run_with_joint(
+                connected_joint=connected_joint,
+                test=test,
+                schema=schema,
+                joint_name=joint_name,
+                results_root=results_root,
+                metadata=metadata,
+                on_status=on_status,
+            )
+        finally:
+            arm.close()
+        return
+
     connected_joint = Joint.open(joint_name=joint_name, config_path=config_path)
-    stop_event = threading.Event()
-    poller: threading.Thread | None = None
     try:
-        with TestRun(
-            suite="motor",
+        yield from _run_with_joint(
+            connected_joint=connected_joint,
             test=test,
             schema=schema,
+            joint_name=joint_name,
             results_root=results_root,
-            joint=joint_name,
-            metadata=metadata or {},
-        ) as recorder:
-            if on_status is not None and test not in _TESTS_WITHOUT_LIVE_STATUS:
-                poller = _start_status_poller(connected_joint, on_status, stop_event)
-            yield connected_joint, recorder
+            metadata=metadata,
+            on_status=on_status,
+        )
     finally:
-        stop_event.set()
-        if poller is not None:
-            poller.join(timeout=STATUS_POLL_INTERVAL_S * 2)
         connected_joint.close()
 
 

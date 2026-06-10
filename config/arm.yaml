@@ -21,6 +21,9 @@
 # (see conversion notes above). This may differ from the factory EEPROM default
 # for Current Limit(38) (e.g. XM430 default 1193 vs 1004 for 2.7 A).
 
+# position_profile_velocity_rpm (optional): Profile_Velocity for position-mode moves.
+# Omit to use the code default (23 rpm). Motor tests may override per run via TUI/CLI.
+
 serial:
   port: "/dev/ttyUSB0"
   baud_rate: 57600 
@@ -38,6 +41,7 @@ joints:
     protocol: 2
     position_limits: [1500, 3200]
     current_limit: 2045
+    position_profile_velocity_rpm: 12
   r_sh_rot:
     id: 3
     model: xm430-w350-t

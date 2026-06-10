@@ -42,6 +42,12 @@ MOTOR_MOTION_TESTS: tuple[str, ...] = (
     "thermal_rise",
 )
 
+MOTOR_POSITION_TESTS: tuple[str, ...] = (
+    "power_on_response",
+    "range_of_motion",
+    "position_accuracy",
+)
+
 MOTOR_TEST_NAMES: tuple[str, ...] = MOTOR_READ_ONLY_TESTS + MOTOR_MOTION_TESTS
 
 STRUCTURAL_TEST_NAMES: tuple[str, ...] = (
@@ -57,6 +63,16 @@ def _motor_fields(test: str) -> tuple[FieldSpec, ...]:
     fields: list[FieldSpec] = [
         FieldSpec("joint", "Joint", "joint", required=True),
     ]
+
+    if test in MOTOR_POSITION_TESTS:
+        fields.append(
+            FieldSpec(
+                "profile_velocity_rpm",
+                "Profile velocity (rpm)",
+                "float",
+                placeholder="Override arm.yaml per-joint default",
+            )
+        )
 
     if test == "range_of_motion":
         fields.append(

@@ -5,10 +5,17 @@ from __future__ import annotations
 from pathlib import Path
 
 from harper_arm import units
+from harper_arm.config import resolve_position_profile_velocity_rpm
 from harper_arm.joint import DEFAULT_CONFIG_PATH
 from harper_arm.motor import move_to_ticks
 
-from .helpers import DEFAULT_RESULTS_ROOT, StatusCallback, motor_test_run, sweep_waypoints, utc_now
+from .helpers import (
+    DEFAULT_RESULTS_ROOT,
+    StatusCallback,
+    motor_test_run,
+    sweep_waypoints,
+    utc_now,
+)
 
 DEFAULT_STEPS = 5
 
@@ -20,6 +27,7 @@ def run(
     results_root: Path = DEFAULT_RESULTS_ROOT,
     steps: int = DEFAULT_STEPS,
     on_status: StatusCallback | None = None,
+    profile_velocity_rpm: float | None = None,
 ) -> Path:
     with motor_test_run(
         test="range_of_motion",
@@ -27,11 +35,14 @@ def run(
         joint_name=joint,
         config_path=config_path,
         results_root=results_root,
-        metadata={"steps": steps},
+        metadata={"steps": steps, "profile_velocity_rpm": profile_velocity_rpm},
         on_status=on_status,
+        profile_velocity_rpm=profile_velocity_rpm,
     ) as (connected_joint, recorder):
-        connected_joint.configure_position_mode()
-        connected_joint.torque_enable()
+        applied_rpm = resolve_position_profile_velocity_rpm(
+            connected_joint.joint,
+            override_rpm=profile_velocity_rpm,
+        )
         waypoints = sweep_waypoints(connected_joint.joint, steps=steps)
         reached_all = True
 
@@ -49,5 +60,9 @@ def run(
                 }
             )
 
-        recorder.set_summary(success=reached_all, waypoint_count=len(waypoints))
+        recorder.set_summary(
+            success=reached_all,
+            profile_velocity_rpm=applied_rpm,
+            waypoint_count=len(waypoints),
+        )
         return recorder.run_dir

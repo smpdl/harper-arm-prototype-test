@@ -32,7 +32,6 @@ def run(
         on_status=on_status,
     ) as (connected_joint, recorder):
         connected_joint.configure_velocity_mode()
-        connected_joint.torque_enable()
         errors: list[float] = []
 
         for index, target_rpm in enumerate(TARGET_RPMS):

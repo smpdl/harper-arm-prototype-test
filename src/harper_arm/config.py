@@ -13,6 +13,9 @@ import yaml
 
 from harper_arm.motor import normalize_model, supported_models
 
+# Used when a joint omits position_profile_velocity_rpm in arm.yaml (~factory X-series default).
+DEFAULT_POSITION_PROFILE_VELOCITY_RPM = 23.0
+
 
 @dataclass(frozen=True)
 class JointConfig:
@@ -22,6 +25,20 @@ class JointConfig:
     protocol: int
     position_limits: tuple[int, int]
     current_limit: int
+    position_profile_velocity_rpm: float | None = None
+
+
+def resolve_position_profile_velocity_rpm(
+    joint: JointConfig,
+    *,
+    override_rpm: float | None = None,
+) -> float:
+    """Return profile velocity for position-mode moves (override > joint config > default)."""
+    if override_rpm is not None:
+        return override_rpm
+    if joint.position_profile_velocity_rpm is not None:
+        return joint.position_profile_velocity_rpm
+    return DEFAULT_POSITION_PROFILE_VELOCITY_RPM
 
 @dataclass(frozen=True)
 class ArmConfig:
@@ -64,6 +81,17 @@ def _parse_joint(name: str, raw: Any) -> JointConfig:
         known = ", ".join(supported_models())
         raise ValueError(f"joint {name!r} has unknown model {model!r}; known: {known}")
 
+    profile_velocity_raw = joint.get("position_profile_velocity_rpm")
+    position_profile_velocity_rpm: float | None
+    if profile_velocity_raw is None:
+        position_profile_velocity_rpm = None
+    else:
+        position_profile_velocity_rpm = float(profile_velocity_raw)
+        if position_profile_velocity_rpm <= 0:
+            raise ValueError(
+                f"joint {name!r} position_profile_velocity_rpm must be positive."
+            )
+
     return JointConfig(
         name=name,
         id=motor_id,
@@ -71,6 +99,7 @@ def _parse_joint(name: str, raw: Any) -> JointConfig:
         protocol=protocol,
         position_limits=(low, high),
         current_limit=current_limit,
+        position_profile_velocity_rpm=position_profile_velocity_rpm,
     )
 
 

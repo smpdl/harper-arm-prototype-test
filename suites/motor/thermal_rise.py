@@ -41,7 +41,6 @@ def run(
     ) as (connected_joint, recorder):
         goal_current = int(round(connected_joint.joint.current_limit * load_fraction))
         connected_joint.configure_velocity_mode(goal_current=goal_current)
-        connected_joint.torque_enable()
         connected_joint.set_velocity(units.rpm_to_velocity(5.0))
 
         started = time.monotonic()
