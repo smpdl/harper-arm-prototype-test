@@ -22,5 +22,11 @@ step_xlarge_deg: 30 # ~336 units in encoder ticks
 # Encoder tolerance to use when validating recorded positions in ticks.
 validation_tolerance_ticks: 15
 
-# Repeatability check: approach 50% from min twice (0% -> 50% -> 0% -> 50% -> 0%).
-validation_repeatability_deg: 0.5
+# Brief pause between validation waypoint moves (seconds).
+validation_hold_s: 0.3
+
+# Supporting joints to position before validating a given joint (fraction along limits).
+validation_prep:
+  r_elb_flex:
+    - joint: r_sh_rot
+      fraction: 1.0

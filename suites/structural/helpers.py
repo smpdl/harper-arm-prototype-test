@@ -83,7 +83,8 @@ def structural_test_run(
         ) as recorder:
             yield arm, recorder
     finally:
-        arm.close()
+        if not arm._closed:
+            arm.close()
 
 
 def structural_pose_names(

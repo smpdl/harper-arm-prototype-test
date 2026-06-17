@@ -362,7 +362,7 @@ class StructuralRunnerScreen(SuiteRunnerScreen):
                     motion=motion,
                 )
             finally:
-                arm.close()
+                arm.close(skip_homing=True)
             if stop_reason:
                 self._call_from_thread(
                     self._write_log,

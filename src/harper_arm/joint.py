@@ -107,9 +107,16 @@ class Joint:
         motor = new_motor(io, joint.id, joint.model, protocol=joint.protocol)
         return cls(config=config, joint_name=joint_name, io=io, motor=motor, joint=joint)
 
-    def close(self) -> None:
+    def close(self, *, skip_homing: bool = False) -> None:
         if not self._owns_bus:
             return
+        if not skip_homing:
+            try:
+                from harper_arm.home import return_joint_to_home
+
+                return_joint_to_home(self)
+            except Exception:
+                pass
         with self.bus_lock:
             try:
                 self.motor.torque_disable()

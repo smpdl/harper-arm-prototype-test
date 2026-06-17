@@ -111,7 +111,10 @@ class PointLoadOperator:
         return self
 
     def __exit__(self, *exc_info: object) -> None:
-        if self._arm is not None and not self._returned_home:
+        skip_homing = (
+            self._abort_event is not None and self._abort_event.is_set()
+        )
+        if self._arm is not None and not self._returned_home and not skip_homing:
             try:
                 motion = load_motion_config(self.pose, e2e_config_path=self.e2e_config_path)
                 reached_home, stop_reason, limiting_joint = move_home_scurve(
@@ -130,6 +133,8 @@ class PointLoadOperator:
                 self._stop_reason = self._stop_reason or f"return_home_failed: {exc}"
         if self._recorder is not None and not self._finished:
             self._write_summary()
+        if self._arm is not None:
+            self._arm.close(skip_homing=skip_homing or self._returned_home)
         self._stack.close()
 
     @property

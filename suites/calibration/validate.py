@@ -7,7 +7,7 @@ from pathlib import Path
 from harper_arm.arm import FullArm
 from harper_arm.calibration.config import DEFAULT_CALIBRATION_PATH, load_calibration_settings
 from harper_arm.calibration.session import JointCalibration
-from harper_arm.calibration.validate import validate_joint
+from harper_arm.calibration.validate import prepare_validation_support_joints, validate_joint
 from harper_arm.config import load_arm_config
 from harper_arm.home import move_arm_to_home_sequential
 from harper_arm.joint import DEFAULT_CONFIG_PATH
@@ -36,6 +36,7 @@ def run(
     )
 
     arm = FullArm.open(config_path=config_path)
+    skip_homing = False
     try:
         with operator_abort_guard() as abort_event:
             with TestRun(
@@ -55,6 +56,13 @@ def run(
                     config_path=config_path,
                     profile_velocity_rpm=settings.profile_velocity_rpm,
                     profile_acceleration_rpm2=settings.profile_acceleration_rpm2,
+                )
+                prepare_validation_support_joints(
+                    arm,
+                    joint,
+                    arm_config,
+                    settings,
+                    abort_event=abort_event,
                 )
                 connected_joint = arm.joint_view(joint)
                 result = validate_joint(
@@ -81,6 +89,7 @@ def run(
                     joint=joint,
                     message=result.message,
                 )
+                skip_homing = abort_event.is_set()
                 return recorder.run_dir
     finally:
-        arm.close()
+        arm.close(skip_homing=skip_homing)

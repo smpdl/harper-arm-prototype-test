@@ -47,6 +47,7 @@ def calibration_test_run(
     session = CalibrationSession()
     partial_path = save_partial_session(session, DEFAULT_PARTIAL_PATH)
     connected_joint = Joint.open(joint_name=joint_name, config_path=config_path)
+    skip_homing = False
     try:
         with operator_abort_guard() as abort_event:
             with TestRun(
@@ -67,7 +68,8 @@ def calibration_test_run(
                     yield connected_joint, recorder, session, abort_event
                 except CalibrationError as exc:
                     save_partial_session(session, partial_path, error=str(exc))
-                    connected_joint.torque_disable()
                     raise
+                finally:
+                    skip_homing = abort_event.is_set()
     finally:
-        connected_joint.close()
+        connected_joint.close(skip_homing=skip_homing)

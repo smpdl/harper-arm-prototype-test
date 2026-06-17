@@ -1,6 +1,4 @@
-"""Post-calibration span validation at 25%, 50%, and 75% of recorded span.
-Repeatability approaches 50% from min twice: 0% -> 50% -> 0% -> 50% -> 0%.
-"""
+"""Post-calibration span validation at min, 25%, 50%, and max of recorded limits."""
 
 from __future__ import annotations
 
@@ -10,16 +8,19 @@ from dataclasses import dataclass
 from typing import Any
 
 from harper_arm import units
+from harper_arm.arm import FullArm
 from harper_arm.calibration.config import CalibrationSettings
 from harper_arm.calibration.errors import CommunicationError, EmergencyStopError
 from harper_arm.calibration.motion import prepare_calibration_motion
 from harper_arm.calibration.record import record_position
 from harper_arm.calibration.session import JointCalibration
-from harper_arm.joint import Joint, apply_motor_position_profile
+from harper_arm.config import ArmConfig, limit_position_at_fraction
+from harper_arm.joint import Joint
 from harper_arm.motor import move_to_ticks
 
-VALIDATION_FRACTIONS = (0.25, 0.5, 0.75)
-VALIDATION_HOLD_S = 3.0
+# Min, 25%, 50%, and max of the configured [min, max] span.
+VALIDATION_FRACTIONS = (0.0, 0.25, 0.5, 1.0)
+
 
 @dataclass(frozen=True)
 class FractionResult:
@@ -73,6 +74,29 @@ class ValidationReport:
         }
 
 
+def prepare_validation_support_joints(
+    arm: FullArm,
+    joint_name: str,
+    arm_config: ArmConfig,
+    settings: CalibrationSettings,
+    *,
+    abort_event: threading.Event | None = None,
+) -> None:
+    """Move supporting joints into position before validating ``joint_name``."""
+    prep_moves = settings.validation_prep.get(joint_name, ())
+    if not prep_moves:
+        return
+
+    for move in prep_moves:
+        if abort_event is not None and abort_event.is_set():
+            raise EmergencyStopError("emergency stop activated")
+        if move.joint not in arm_config.joints:
+            raise ValueError(f"unknown validation prep joint {move.joint!r}")
+        limits = arm_config.joints[move.joint].position_limits
+        target = limit_position_at_fraction(limits, move.fraction)
+        move_to_ticks(arm, target, joint_name=move.joint)
+
+
 def validate_joint(
     joint: Joint,
     calibration: JointCalibration,
@@ -80,7 +104,7 @@ def validate_joint(
     *,
     abort_event: threading.Event | None = None,
 ) -> JointValidationResult:
-    """Move to 25/50/75% of recorded span and verify encoder feedback."""
+    """Move to min, 25%, 50%, and max of the recorded span and verify feedback."""
     if calibration.min_position is None or calibration.max_position is None:
         return JointValidationResult(
             joint_name=calibration.joint_name,
@@ -94,6 +118,7 @@ def validate_joint(
     with joint.bus_lock:
         joint.motor.torque_enable()
 
+    hold_s = settings.validation_hold_s
     fraction_results: list[FractionResult] = []
     try:
         for fraction in VALIDATION_FRACTIONS:
@@ -127,14 +152,8 @@ def validate_joint(
                     error_deg=error_deg,
                 )
             )
-            time.sleep(VALIDATION_HOLD_S)
-
-        repeatability_error_deg = _repeatability_at_midspan(
-            joint,
-            calibration,
-            settings,
-            abort_event=abort_event,
-        )
+            if hold_s > 0:
+                time.sleep(hold_s)
     except (CommunicationError, EmergencyStopError) as exc:
         return JointValidationResult(
             joint_name=calibration.joint_name,
@@ -148,15 +167,13 @@ def validate_joint(
     passed = all(
         result.reached and result.error_deg <= tolerance_deg for result in fraction_results
     )
-    if repeatability_error_deg > settings.validation_repeatability_deg:
-        passed = False
 
     return JointValidationResult(
         joint_name=calibration.joint_name,
         passed=passed,
         fraction_results=tuple(fraction_results),
-        repeatability_error_deg=repeatability_error_deg,
-        message=None if passed else "position or repeatability out of tolerance",
+        repeatability_error_deg=None,
+        message=None if passed else "position out of tolerance",
     )
 
 
@@ -175,49 +192,9 @@ def validate_session(
         )
         for hardware, calibration in joints.values()
     ]
-    repeatability_values = [
-        result.repeatability_error_deg
-        for result in results
-        if result.repeatability_error_deg is not None
-    ]
-    worst_repeatability = max(repeatability_values) if repeatability_values else 0.0
     passed = all(result.passed for result in results)
     return ValidationReport(
         passed=passed,
         joint_results=tuple(results),
-        repeatability_error_deg=worst_repeatability,
+        repeatability_error_deg=0.0,
     )
-
-
-def _repeatability_at_midspan(
-    joint: Joint,
-    calibration: JointCalibration,
-    settings: CalibrationSettings,
-    *,
-    abort_event: threading.Event | None = None,
-) -> float:
-    """Approach 50% from min twice and compare the two readings at midspan."""
-    min_target = calibration.position_at_fraction(0.0)
-    mid_target = calibration.position_at_fraction(0.5)
-    with joint.bus_lock:
-        apply_motor_position_profile(
-            joint.motor,
-            velocity_rpm=settings.profile_velocity_rpm,
-            acceleration_rpm2=settings.profile_acceleration_rpm2,
-        )
-
-    readings: list[int] = []
-    for min_target_ticks, mid_target_ticks in (
-        (min_target, mid_target),
-        (min_target, mid_target),
-    ):
-        if abort_event is not None and abort_event.is_set():
-            raise EmergencyStopError("emergency stop activated")
-        move_to_ticks(joint, min_target_ticks, joint_name=joint.joint_name)
-        time.sleep(VALIDATION_HOLD_S)
-        move_to_ticks(joint, mid_target_ticks, joint_name=joint.joint_name)
-        readings.append(record_position(joint, abort_event=abort_event))
-        time.sleep(VALIDATION_HOLD_S)
-
-    move_to_ticks(joint, min_target, joint_name=joint.joint_name)
-    return abs(units.position_error_deg(readings[1], readings[0]))

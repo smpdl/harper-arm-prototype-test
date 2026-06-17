@@ -39,6 +39,7 @@ class FullArm:
     # this is a lock to syncronize access to the bus (e.g. reading/writing registers).
     # Read-Modify-Write operations should be atomic.
     bus_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    _closed: bool = field(default=False, repr=False)
 
     @classmethod
     def open(cls, *, config_path: Path | str = DEFAULT_CONFIG_PATH) -> FullArm:
@@ -60,14 +61,25 @@ class FullArm:
         }
         return cls(config=config, io=io, motors=motors)
 
-    def close(self) -> None:
-        """Close the arm.
+    def close(self, *, skip_homing: bool = False) -> None:
+        """Return homed joints to home, then torque off and disconnect."""
+        if self._closed:
+            return
+        if not skip_homing:
+            try:
+                from harper_arm.home import move_arm_to_home_sequential
 
-        This function will torque off all the motors.
-        """
+                move_arm_to_home_sequential(
+                    self,
+                    arm_config=self.config,
+                    prepare_bus=False,
+                )
+            except Exception:
+                pass
         with self.bus_lock:
             torque_off_all(self.motors)
         disconnect_io(self.io)
+        self._closed = True
 
     def configure_position_mode(self) -> None:
         """Configure the position mode for all the joints."""

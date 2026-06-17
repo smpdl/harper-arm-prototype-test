@@ -12,7 +12,7 @@ from harper_arm.config import (
     joint_names_sorted_by_motor_id,
     load_arm_config,
 )
-from harper_arm.joint import DEFAULT_CONFIG_PATH
+from harper_arm.joint import DEFAULT_CONFIG_PATH, Joint
 from harper_arm.motor import move_to_ticks
 
 if TYPE_CHECKING:
@@ -30,10 +30,19 @@ def ordered_home_targets(arm: ArmConfig) -> tuple[tuple[str, int], ...]:
     )
 
 
+def return_joint_to_home(joint: Joint) -> None:
+    """Move one joint to its recorded home position when configured."""
+    home_ticks = joint.joint.home_position
+    if home_ticks is None:
+        return
+    move_to_ticks(joint, int(home_ticks), joint_name=joint.joint_name)
+
+
 def move_arm_to_home_sequential(
     arm: FullArm,
     *,
     config_path: Path | str = DEFAULT_CONFIG_PATH,
+    arm_config: ArmConfig | None = None,
     pause_s: float = SEQUENTIAL_HOME_PAUSE_S,
     prepare_bus: bool = True,
     profile_velocity_rpm: float | None = None,
@@ -46,7 +55,7 @@ def move_arm_to_home_sequential(
     Each homed joint is moved in ascending motor-ID order. The arm waits
     ``pause_s`` after every joint move, including the last.
     """
-    arm_config = load_arm_config(config_path)
+    resolved_config = arm_config or arm.config or load_arm_config(config_path)
     if prepare_bus:
         arm.prepare_motion_bus(
             joint_name=None,
@@ -57,12 +66,13 @@ def move_arm_to_home_sequential(
         arm.torque_enable_all()
 
     results: dict[str, tuple[bool, int]] = {}
-    for joint_name, target_ticks in ordered_home_targets(arm_config):
+    for joint_name, target_ticks in ordered_home_targets(resolved_config):
         reached, measured = move_to_ticks(arm, target_ticks, joint_name=joint_name)
         results[joint_name] = (reached, measured)
         if monitor is not None:
             safety = monitor.evaluate(arm.sample())
             if safety.should_stop:
                 return results, safety.reason, safety.triggering_joint
-        time.sleep(pause_s)
+        if pause_s > 0:
+            time.sleep(pause_s)
     return results, "", None

@@ -32,6 +32,14 @@ def target_within_position_limits(limits: tuple[int, int], target: int) -> bool:
     min_tick, max_tick = limits
     return clamp_to_position_limits(min_tick, max_tick, target) == target
 
+
+def limit_position_at_fraction(limits: tuple[int, int], fraction: float) -> int:
+    """Return encoder ticks at ``fraction`` along semantic ``[min, max]`` limits."""
+    min_tick, max_tick = limits
+    if not 0.0 <= fraction <= 1.0:
+        raise ValueError("fraction must be in [0, 1]")
+    return int(round(min_tick + fraction * (max_tick - min_tick)))
+
 @dataclass(frozen=True)
 class JointConfig:
     name: str

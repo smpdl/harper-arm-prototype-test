@@ -228,8 +228,6 @@ def motor_test_run(
                     metadata=metadata,
                     on_status=on_status,
                 )
-            finally:
-                return_to_base_position(arm, config_path=config_path)
         finally:
             arm.close()
         return

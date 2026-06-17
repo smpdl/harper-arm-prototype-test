@@ -143,7 +143,10 @@ class E2EOperator:
         return self
 
     def __exit__(self, *exc_info: object) -> None:
-        if self._arm is not None and not self._returned_home:
+        skip_homing = (
+            self._abort_event is not None and self._abort_event.is_set()
+        )
+        if self._arm is not None and not self._returned_home and not skip_homing:
             try:
                 self._move_home()
             except Exception as exc:
@@ -151,7 +154,7 @@ class E2EOperator:
         if self._recorder is not None and not self._finished:
             self._write_summary()
         if self._arm is not None:
-            self._arm.close()
+            self._arm.close(skip_homing=True)
             self._arm = None
         self._stack.close()
 
