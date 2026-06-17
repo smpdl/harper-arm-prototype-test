@@ -239,13 +239,20 @@ def load_arm_config(path: Path | str = Path("config/arm.yaml")) -> ArmConfig:
     return ArmConfig(serial_port=serial_port, baud_rate=baud_rate, joints=joints)
 
 
+def joint_names_sorted_by_motor_id(arm: ArmConfig) -> tuple[str, ...]:
+    """Return joint names ordered by ascending Dynamixel motor ID."""
+    return tuple(
+        name for name, _ in sorted(arm.joints.items(), key=lambda item: item[1].id)
+    )
+
+
 def resolve_home_pose(
     arm: ArmConfig,
     *,
     joint_names: tuple[str, ...] | None = None,
 ) -> dict[str, int]:
     """Return calibrated home ticks for the requested joints."""
-    names = joint_names or tuple(arm.joints)
+    names = joint_names or joint_names_sorted_by_motor_id(arm)
     unknown = sorted(set(names) - set(arm.joints))
     if unknown:
         raise ValueError(f"unknown joints requested for home pose: {unknown}")

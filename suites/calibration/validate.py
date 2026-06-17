@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from harper_arm.arm import FullArm
 from harper_arm.calibration.config import DEFAULT_CALIBRATION_PATH, load_calibration_settings
 from harper_arm.calibration.session import JointCalibration
 from harper_arm.calibration.validate import validate_joint
 from harper_arm.config import load_arm_config
+from harper_arm.home import move_arm_to_home_sequential
 from harper_arm.joint import DEFAULT_CONFIG_PATH
+from harper_arm.logging import TestRun
+from harper_arm.sampling import operator_abort_guard
 
-from .helpers import DEFAULT_RESULTS_ROOT, calibration_test_run, utc_now
+from .helpers import DEFAULT_RESULTS_ROOT, utc_now
 
 
 def run(
@@ -27,40 +31,56 @@ def run(
     calibration = JointCalibration(
         joint_name=joint,
         min_position=joint_cfg.position_limits[0],
-        home_position=None,
+        home_position=joint_cfg.home_position,
         max_position=joint_cfg.position_limits[1],
     )
 
-    with calibration_test_run(
-        test="validate",
-        schema="calibration_validation",
-        joint_name=joint,
-        config_path=config_path,
-        calibration_path=calibration_path,
-        results_root=results_root,
-    ) as (connected_joint, recorder, _session, abort_event):
-        result = validate_joint(
-            connected_joint,
-            calibration,
-            settings,
-            abort_event=abort_event,
-        )
-        for fraction_result in result.fraction_results:
-            recorder.write_row(
-                {
-                    "timestamp_utc": utc_now().isoformat(),
-                    "joint": joint,
-                    "fraction": fraction_result.fraction,
-                    "target_ticks": fraction_result.target_ticks,
-                    "measured_ticks": fraction_result.measured_ticks,
-                    "error_deg": fraction_result.error_deg,
-                    "reached": fraction_result.reached,
-                }
-            )
-        recorder.set_summary(
-            passed=result.passed,
-            repeatability_error_deg=result.repeatability_error_deg,
-            joint=joint,
-            message=result.message,
-        )
-        return recorder.run_dir
+    arm = FullArm.open(config_path=config_path)
+    try:
+        with operator_abort_guard() as abort_event:
+            with TestRun(
+                suite="calibration",
+                test="validate",
+                schema="calibration_validation",
+                results_root=results_root,
+                joint=joint,
+                metadata={
+                    "profile_velocity_rpm": settings.profile_velocity_rpm,
+                    "step_small_deg": settings.step_small_deg,
+                    "step_large_deg": settings.step_large_deg,
+                },
+            ) as recorder:
+                move_arm_to_home_sequential(
+                    arm,
+                    config_path=config_path,
+                    profile_velocity_rpm=settings.profile_velocity_rpm,
+                    profile_acceleration_rpm2=settings.profile_acceleration_rpm2,
+                )
+                connected_joint = arm.joint_view(joint)
+                result = validate_joint(
+                    connected_joint,
+                    calibration,
+                    settings,
+                    abort_event=abort_event,
+                )
+                for fraction_result in result.fraction_results:
+                    recorder.write_row(
+                        {
+                            "timestamp_utc": utc_now().isoformat(),
+                            "joint": joint,
+                            "fraction": fraction_result.fraction,
+                            "target_ticks": fraction_result.target_ticks,
+                            "measured_ticks": fraction_result.measured_ticks,
+                            "error_deg": fraction_result.error_deg,
+                            "reached": fraction_result.reached,
+                        }
+                    )
+                recorder.set_summary(
+                    passed=result.passed,
+                    repeatability_error_deg=result.repeatability_error_deg,
+                    joint=joint,
+                    message=result.message,
+                )
+                return recorder.run_dir
+    finally:
+        arm.close()

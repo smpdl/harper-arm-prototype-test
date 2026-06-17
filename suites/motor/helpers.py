@@ -19,6 +19,7 @@ from harper_arm.config import (
     resolve_position_profile_velocity_rpm,
 )
 from harper_arm import units
+from harper_arm.home import SEQUENTIAL_HOME_PAUSE_S, move_arm_to_home_sequential
 from harper_arm.joint import DEFAULT_CONFIG_PATH, Joint
 from harper_arm.logging import TestRun
 from harper_arm.motor import POSITION_TOLERANCE_TICKS, move_to_ticks
@@ -86,11 +87,14 @@ def at_base_position(
 def move_arm_to_pose(
     arm: FullArm,
     pose: Mapping[str, int],
+    *,
+    config_path: Path | str = DEFAULT_CONFIG_PATH,
 ) -> dict[str, tuple[bool, int]]:
-    return {
-        joint_name: move_to_ticks(arm, target_ticks, joint_name=joint_name)
-        for joint_name, target_ticks in pose.items()
-    }
+    arm_config = load_arm_config(config_path)
+    home = resolve_home_pose(arm_config)
+    if dict(pose) != home:
+        raise ValueError("only the calibrated home pose is supported for whole-arm moves")
+    return move_arm_to_home_sequential(arm, config_path=config_path, prepare_bus=False)[0]
 
 
 def ensure_base_position(

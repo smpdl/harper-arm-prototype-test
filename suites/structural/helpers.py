@@ -15,6 +15,7 @@ from harper_arm import units
 from harper_arm.arm import FullArm
 from harper_arm.config import ArmConfig, load_arm_config, require_arm_calibrated, resolve_home_pose
 from harper_arm.joint import DEFAULT_CONFIG_PATH
+from harper_arm.home import SEQUENTIAL_HOME_PAUSE_S, move_arm_to_home_sequential
 from harper_arm.logging import TestRun
 from harper_arm.motion import ResolvedKeyframe, resolve_plan
 from harper_arm.motor import (
@@ -304,38 +305,17 @@ def move_home_scurve(
     motion: StructuralMotionConfig | None = None,
     monitor: SafetyMonitor | None = None,
 ) -> tuple[bool, str, str | None]:
-    """Return the arm to calibrated home with per-joint S-curve streaming."""
-    arm_config = load_arm_config(config_path)
-    home_pose = resolve_home_pose(arm_config)
-    motion = motion or load_motion_config(DEFAULT_HOME_NAME, e2e_config_path=e2e_config_path)
-
-    reached_all = True
-    stop_reason = ""
-    limiting_joint: str | None = None
-    for joint_name, target_ticks in home_pose.items():
-        start_snapshot = arm.sample()
-        start_ticks = start_snapshot[joint_name].position
-        if abs(start_ticks - target_ticks) <= POSITION_TOLERANCE_TICKS:
-            continue
-        trajectory = synchronized_scurve_trajectory(
-            {joint_name: start_ticks},
-            {joint_name: target_ticks},
-            max_velocity_deg_s=motion.scurve_max_velocity_deg_s,
-            max_acceleration_deg_s2=motion.scurve_max_acceleration_deg_s2,
-            sample_period_s=motion.scurve_sample_period_s,
-        )
-        reason, joint = execute_trajectory(arm, trajectory, monitor)
-        snapshot = arm.sample()
-        reached = (
-            abs(snapshot[joint_name].position - target_ticks)
-            <= POSITION_TOLERANCE_TICKS
-        )
-        reached_all = reached_all and reached
-        if reason:
-            stop_reason = reason
-            limiting_joint = joint
-            break
-
+    """Return the arm to calibrated home, one joint at a time in motor-ID order."""
+    _ = e2e_config_path
+    _ = motion
+    results, stop_reason, limiting_joint = move_arm_to_home_sequential(
+        arm,
+        config_path=config_path,
+        prepare_bus=False,
+        pause_s=SEQUENTIAL_HOME_PAUSE_S,
+        monitor=monitor,
+    )
+    reached_all = all(reached for reached, _ in results.values())
     return reached_all, stop_reason, limiting_joint
 
 
@@ -359,16 +339,15 @@ def prepare_hold_pose(
     )
 
     if keyframe is None:
-        home_pose = resolve_home_pose(arm_config)
-        reached_all = True
-        move_results: dict[str, tuple[bool, int]] = {}
-        stop_reason = ""
-        limiting_joint: str | None = None
-        for joint_name, target_ticks in home_pose.items():
-            reached, final_ticks = move_to_ticks(arm, target_ticks, joint_name=joint_name)
-            move_results[joint_name] = (reached, final_ticks)
-            reached_all = reached_all and reached
-        return reached_all, move_results, stop_reason, limiting_joint
+        results, stop_reason, limiting_joint = move_arm_to_home_sequential(
+            arm,
+            config_path=config_path,
+            prepare_bus=False,
+            pause_s=SEQUENTIAL_HOME_PAUSE_S,
+            monitor=monitor,
+        )
+        reached_all = all(reached for reached, _ in results.values())
+        return reached_all, results, stop_reason, limiting_joint
 
     reached, stop_reason, limiting_joint = move_keyframe_scurve(
         arm,
