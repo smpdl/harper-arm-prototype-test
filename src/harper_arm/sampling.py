@@ -129,6 +129,10 @@ class _OperatorAbort:
 
     def install(self) -> None:
         """Install the operator abort guard."""
+        # signal.signal() is only valid on the main thread. TUI workers still
+        # receive the abort event object but rely on the app for Ctrl+C handling.
+        if threading.current_thread() is not threading.main_thread():
+            return
         # SIGINT and SIGTERM abort the test.
         for signum in (signal.SIGINT, signal.SIGTERM):
             self._previous_handlers[signum] = signal.getsignal(signum)
@@ -136,6 +140,8 @@ class _OperatorAbort:
 
     def restore(self) -> None:
         """Restore the operator abort guard."""
+        if not self._previous_handlers:
+            return
         for signum, handler in self._previous_handlers.items():
             signal.signal(signum, handler)
         self._previous_handlers.clear()

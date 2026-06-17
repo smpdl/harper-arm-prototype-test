@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from harper_arm.config import clamp_to_position_limits
+
 
 @dataclass
 class JointCalibration:
@@ -17,15 +19,12 @@ class JointCalibration:
 
     def record_min(self, ticks: int) -> None:
         self.min_position = ticks
-        self._validate_order()
 
     def record_home(self, ticks: int) -> None:
         self.home_position = ticks
-        self._validate_order()
 
     def record_max(self, ticks: int) -> None:
         self.max_position = ticks
-        self._validate_order()
 
     def is_complete(self) -> bool:
         return (
@@ -54,12 +53,10 @@ class JointCalibration:
 
     def clamp_target(self, target_ticks: int) -> int:
         """Clamp a jog target to operator-confirmed limits when recorded."""
-        low = self.min_position
-        high = self.max_position
-        if low is not None:
-            target_ticks = max(target_ticks, low)
-        if high is not None:
-            target_ticks = min(target_ticks, high)
+        min_tick = self.min_position
+        max_tick = self.max_position
+        if min_tick is not None and max_tick is not None:
+            return clamp_to_position_limits(min_tick, max_tick, target_ticks)
         return target_ticks
 
     def to_dict(self) -> dict[str, Any]:
@@ -78,23 +75,6 @@ class JointCalibration:
             home_position=_optional_int(data.get("home_position")),
             max_position=_optional_int(data.get("max_position")),
         )
-
-    def _validate_order(self) -> None:
-        positions = [
-            ("min", self.min_position),
-            ("home", self.home_position),
-            ("max", self.max_position),
-        ]
-        recorded = [(name, value) for name, value in positions if value is not None]
-        for i in range(len(recorded) - 1):
-            left_name, left = recorded[i]
-            right_name, right = recorded[i + 1]
-            if left > right:
-                raise ValueError(
-                    f"joint {self.joint_name!r}: {left_name} ({left}) must be "
-                    f"<= {right_name} ({right})"
-                )
-
 
 @dataclass
 class CalibrationSession:

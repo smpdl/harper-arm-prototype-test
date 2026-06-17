@@ -15,6 +15,23 @@ from harper_arm.motor import normalize_model, supported_models
 
 DEFAULT_POSITION_PROFILE_VELOCITY_RPM = 23.0
 
+
+def clamp_to_position_limits(min_tick: int, max_tick: int, target: int) -> int:
+    """Clamp ``target`` to the inclusive range between semantic min and max ticks.
+
+    ``min_tick`` and ``max_tick`` keep their recorded meaning even when the max
+    tick value is numerically smaller than the min tick value.
+    """
+    if min_tick <= max_tick:
+        return max(min_tick, min(target, max_tick))
+    return max(max_tick, min(target, min_tick))
+
+
+def target_within_position_limits(limits: tuple[int, int], target: int) -> bool:
+    """Return whether ``target`` lies between semantic position limits."""
+    min_tick, max_tick = limits
+    return clamp_to_position_limits(min_tick, max_tick, target) == target
+
 @dataclass(frozen=True)
 class JointConfig:
     name: str
@@ -120,8 +137,6 @@ def _parse_joint(name: str, raw: Any) -> JointConfig:
         raise ValueError(f"joint {name!r} position_limits must be [min, max].")
 
     low, high = int(limits[0]), int(limits[1])
-    if low > high:
-        raise ValueError(f"joint {name!r} position_limits min must be <= max.")
 
     home_raw = joint.get("home_position")
     home_position: int | None
@@ -129,11 +144,6 @@ def _parse_joint(name: str, raw: Any) -> JointConfig:
         home_position = None
     else:
         home_position = int(home_raw)
-        if home_position < low or home_position > high:
-            raise ValueError(
-                f"joint {name!r} home_position {home_position} must be within "
-                f"position_limits [{low}, {high}]"
-            )
 
     calibrated = bool(joint.get("calibrated", False))
     if calibrated and home_position is None:

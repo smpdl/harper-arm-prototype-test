@@ -9,14 +9,13 @@ from typing import Any
 from dynio import DynamixelIO, DynamixelMotor
 
 from harper_arm import units
-from harper_arm.config import ArmConfig, JointConfig, load_arm_config
+from harper_arm.config import ArmConfig, JointConfig, clamp_to_position_limits, load_arm_config
 from harper_arm.motor import connect_io, disconnect_io, new_motor
 
 DEFAULT_CONFIG_PATH = Path("config/arm.yaml")
 
 CURRENT_CONTROL_MODE = 0
 PWM_CONTROL_MODE = 16
-
 
 def _read_register(motor: DynamixelMotor, name: str) -> int:
     return int(motor.read_control_table(name))
@@ -68,11 +67,15 @@ def configure_joint_position_mode(motor: DynamixelMotor, joint: JointConfig) -> 
         motor: The motor to configure.
         joint: The joint to configure.
     """
-    low, high = joint.position_limits
-    if low < 0 or high > 4095:
+    min_tick, max_tick = joint.position_limits
+    if min(min_tick, max_tick) < 0 or max(min_tick, max_tick) > 4095:
         motor.set_extended_position_mode()
     else:
-        motor.set_position_mode(min_limit=low, max_limit=high)
+        # Dynamixel registers require numeric min <= max; semantic labels are unchanged in config.
+        motor.set_position_mode(
+            min_limit=min(min_tick, max_tick),
+            max_limit=max(min_tick, max_tick),
+        )
 
 
 @dataclass

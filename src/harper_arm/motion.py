@@ -10,7 +10,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from harper_arm import units
-from harper_arm.config import ArmConfig, JointConfig, require_home_position
+from harper_arm.config import (
+    ArmConfig,
+    JointConfig,
+    clamp_to_position_limits,
+    require_home_position,
+    target_within_position_limits,
+)
 
 DEFAULT_HOLD_S = 3.0
 
@@ -71,11 +77,11 @@ def target_ticks_from_home(joint: JointConfig, offset_deg: float) -> int:
 
 def validate_target_in_limits(joint: JointConfig, target_ticks: int) -> None:
     """Reject targets outside configured hard software limits before motion."""
-    low, high = joint.position_limits
-    if target_ticks < low or target_ticks > high:
+    min_tick, max_tick = joint.position_limits
+    if not target_within_position_limits(joint.position_limits, target_ticks):
         raise ValueError(
             f"joint {joint.name!r} target {target_ticks} is outside position_limits "
-            f"[{low}, {high}]"
+            f"[min={min_tick}, max={max_tick}]"
         )
 
 def resolve_keyframe(

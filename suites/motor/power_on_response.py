@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 from harper_arm import units
-from harper_arm.config import resolve_position_profile_velocity_rpm
+from harper_arm.config import clamp_to_position_limits, resolve_position_profile_velocity_rpm
 from harper_arm.joint import DEFAULT_CONFIG_PATH
 from harper_arm.motor import move_to_ticks
 
@@ -52,8 +52,8 @@ def run(
         start_ticks = connected_joint.get_position()
         start_deg = units.ticks_to_degrees(start_ticks)
         goal_ticks = start_ticks + units.degrees_to_ticks(POWER_ON_DELTA_DEG)
-        low, high = connected_joint.joint.position_limits
-        goal_ticks = max(low, min(high, goal_ticks))
+        min_tick, max_tick = connected_joint.joint.position_limits
+        goal_ticks = clamp_to_position_limits(min_tick, max_tick, goal_ticks)
 
         started = time.monotonic()
         reached, end_ticks = move_to_ticks(connected_joint, goal_ticks)
