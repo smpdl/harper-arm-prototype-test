@@ -27,7 +27,7 @@ from harper_arm.motor import move_to_ticks
 from .helpers import DEFAULT_RESULTS_ROOT, StatusCallback, motor_test_run, utc_now
 
 DEFAULT_TRIALS = 10
-STEP_PAUSE_S = 3.0
+STEP_PAUSE_S = 0.5
 TARGET_ANGLES_DEG = (0.0, 45.0, 90.0, 135.0, 180.0)
 
 def _target_ticks_for_angle(joint: JointConfig, angle_deg: float) -> int:

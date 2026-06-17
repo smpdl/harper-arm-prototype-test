@@ -145,6 +145,6 @@ def load_calibration_settings(
         step_large_deg=_positive_float("step_large_deg", 10.0),
         step_xlarge_deg=_positive_float("step_xlarge_deg", 30.0),
         validation_tolerance_ticks=_positive_int("validation_tolerance_ticks", 15),
-        validation_hold_s=_non_negative_float("validation_hold_s", 0.3),
+        validation_hold_s=_non_negative_float("validation_hold_s", 0.5),
         validation_prep=_load_validation_prep(raw),
     )

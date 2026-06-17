@@ -20,7 +20,7 @@ from harper_arm.motor import move_to_ticks
 from .helpers import DEFAULT_RESULTS_ROOT, StatusCallback, motor_test_run, utc_now
 
 POWER_ON_DELTA_DEG = 10.0
-PRE_RETURN_PAUSE_S = 3.0
+PRE_RETURN_PAUSE_S = 0.5
 
 
 def run(

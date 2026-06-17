@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from harper_arm.arm import FullArm
+from harper_arm.calibration.config import DEFAULT_CALIBRATION_PATH, load_calibration_settings
+from harper_arm.calibration.validate import prepare_validation_support_joints
 from harper_arm.config import (
     load_arm_config,
     require_arm_calibrated,
@@ -217,19 +219,25 @@ def motor_test_run(
                 profile_velocity_rpm=profile_velocity_rpm,
             )
             ensure_base_position(arm, config_path=config_path)
+            calibration_settings = load_calibration_settings(DEFAULT_CALIBRATION_PATH)
+            prepare_validation_support_joints(
+                arm,
+                joint_name,
+                arm_config,
+                calibration_settings,
+            )
             connected_joint = arm.joint_view(joint_name)
-            try:
-                yield from _run_with_joint(
-                    connected_joint=connected_joint,
-                    test=test,
-                    schema=schema,
-                    joint_name=joint_name,
-                    results_root=results_root,
-                    metadata=metadata,
-                    on_status=on_status,
-                )
+            yield from _run_with_joint(
+                connected_joint=connected_joint,
+                test=test,
+                schema=schema,
+                joint_name=joint_name,
+                results_root=results_root,
+                metadata=metadata,
+                on_status=on_status,
+            )
         finally:
-            arm.close()
+            arm.close(joint_under_test=joint_name)
         return
 
     connected_joint = Joint.open(joint_name=joint_name, config_path=config_path)

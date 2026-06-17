@@ -92,4 +92,4 @@ def run(
                 skip_homing = abort_event.is_set()
                 return recorder.run_dir
     finally:
-        arm.close(skip_homing=skip_homing)
+        arm.close(skip_homing=skip_homing, joint_under_test=joint)

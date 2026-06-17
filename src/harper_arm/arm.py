@@ -61,7 +61,7 @@ class FullArm:
         }
         return cls(config=config, io=io, motors=motors)
 
-    def close(self, *, skip_homing: bool = False) -> None:
+    def close(self, *, skip_homing: bool = False, joint_under_test: str | None = None) -> None:
         """Return homed joints to home, then torque off and disconnect."""
         if self._closed:
             return
@@ -72,6 +72,7 @@ class FullArm:
                 move_arm_to_home_sequential(
                     self,
                     arm_config=self.config,
+                    joint_under_test=joint_under_test,
                     prepare_bus=False,
                 )
             except Exception:
