@@ -9,7 +9,11 @@ from typing import TYPE_CHECKING
 from dynio import DynamixelMotor
 
 from harper_arm import units
-from harper_arm.motor import read_present_position
+from harper_arm.motor import (
+    read_control_table_safe,
+    read_present_current_safe,
+    read_present_position,
+)
 
 if TYPE_CHECKING:
     from harper_arm.joint import Joint
@@ -73,13 +77,7 @@ class MotorStatus:
 
 
 def _safe_read_int(motor: DynamixelMotor, register: str) -> int | None:
-    try:
-        table = getattr(motor, "CONTROL_TABLE", None)
-        if table is not None and register not in table:
-            return None
-        return int(motor.read_control_table(register))
-    except Exception:
-        return None
+    return read_control_table_safe(motor, register)
 
 
 def _safe_read_int_signed(motor: DynamixelMotor, register: str) -> int | None:
@@ -91,33 +89,50 @@ def _safe_read_int_signed(motor: DynamixelMotor, register: str) -> int | None:
     return value
 
 
-def read_motor_status(connected_joint: Joint) -> MotorStatus:
-    """Read present and goal registers from a connected joint."""
+def _motor_status_unlocked(connected_joint: Joint) -> MotorStatus:
+    """Build a status snapshot. Caller must hold ``connected_joint.bus_lock``."""
     motor = connected_joint.motor
     joint_cfg = connected_joint.joint
 
-    with connected_joint.bus_lock:
-        torque_raw = _safe_read_int(motor, "Torque_Enable")
-        moving_raw = _safe_read_int(motor, "Moving")
+    torque_raw = _safe_read_int(motor, "Torque_Enable")
+    moving_raw = _safe_read_int(motor, "Moving")
+    velocity = _safe_read_int(motor, "Present_Velocity")
+    current = read_present_current_safe(motor)
+    temperature = _safe_read_int(motor, "Present_Temperature")
+    voltage = _safe_read_int(motor, "Present_Input_Voltage")
 
-        return MotorStatus(
-            timestamp=datetime.now(),
-            joint=connected_joint.joint_name,
-            motor_id=joint_cfg.id,
-            model=joint_cfg.model,
-            position=read_present_position(motor),
-            velocity=int(motor.read_control_table("Present_Velocity")),
-            current=int(motor.get_current()),
-            temperature=int(motor.read_control_table("Present_Temperature")),
-            voltage=int(motor.read_control_table("Present_Input_Voltage")),
-            goal_position=_safe_read_int_signed(motor, "Goal_Position"),
-            goal_velocity=_safe_read_int(motor, "Goal_Velocity"),
-            goal_current=_safe_read_int(motor, "Goal_Current"),
-            torque_enabled=None if torque_raw is None else bool(torque_raw),
-            moving=None if moving_raw is None else bool(moving_raw),
-            hardware_error=_safe_read_int(motor, "Hardware_Error_Status"),
-            operating_mode=_safe_read_int(motor, "Operating_Mode"),
-        )
+    return MotorStatus(
+        timestamp=datetime.now(),
+        joint=connected_joint.joint_name,
+        motor_id=joint_cfg.id,
+        model=joint_cfg.model,
+        position=read_present_position(motor),
+        velocity=0 if velocity is None else velocity,
+        current=0 if current is None else current,
+        temperature=0 if temperature is None else temperature,
+        voltage=0 if voltage is None else voltage,
+        goal_position=_safe_read_int_signed(motor, "Goal_Position"),
+        goal_velocity=_safe_read_int(motor, "Goal_Velocity"),
+        goal_current=_safe_read_int(motor, "Goal_Current"),
+        torque_enabled=None if torque_raw is None else bool(torque_raw),
+        moving=None if moving_raw is None else bool(moving_raw),
+        hardware_error=_safe_read_int(motor, "Hardware_Error_Status"),
+        operating_mode=_safe_read_int(motor, "Operating_Mode"),
+    )
+
+
+def read_motor_status(connected_joint: Joint) -> MotorStatus:
+    """Read present and goal registers from a connected joint."""
+    with connected_joint.bus_lock:
+        return _motor_status_unlocked(connected_joint)
+
+
+def read_joint_live(connected_joint: Joint) -> tuple[int, MotorStatus]:
+    """Read position and status in one bus transaction group."""
+    with connected_joint.bus_lock:
+        status = _motor_status_unlocked(connected_joint)
+        return status.position, status
+
 
 def format_hardware_error(code: int | None) -> str:
     if code is None:

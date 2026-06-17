@@ -87,19 +87,57 @@ def _motor_ids_by_joint(selected: Mapping[str, DynamixelMotor]) -> dict[int, str
     return {motor.dxl_id: joint_name for joint_name, motor in selected.items()}
 
 
+BUS_READ_RETRIES = 2
+BUS_READ_RETRY_DELAY_S = 0.003
+
+
+def read_control_table_safe(motor: DynamixelMotor, register: str) -> int | None:
+    """Read one control-table register, retrying truncated SDK responses."""
+    table = getattr(motor, "CONTROL_TABLE", None)
+    if table is not None and register not in table:
+        return None
+    for attempt in range(BUS_READ_RETRIES):
+        try:
+            return int(motor.read_control_table(register))
+        except IndexError:
+            if attempt + 1 < BUS_READ_RETRIES:
+                time.sleep(BUS_READ_RETRY_DELAY_S)
+        except Exception:
+            return None
+    return None
+
+
+def read_present_current_safe(motor: DynamixelMotor) -> int | None:
+    for attempt in range(BUS_READ_RETRIES):
+        try:
+            value = motor.get_current()
+            if value is None:
+                return None
+            return int(value)
+        except IndexError:
+            if attempt + 1 < BUS_READ_RETRIES:
+                time.sleep(BUS_READ_RETRY_DELAY_S)
+        except Exception:
+            return None
+    return None
+
+
 def read_present_position(motor: DynamixelMotor) -> int:
     """Read Present_Position with signed 32-bit decoding."""
-    return units.decode_position_ticks(int(motor.read_control_table("Present_Position")))
+    raw = read_control_table_safe(motor, "Present_Position")
+    if raw is None:
+        raise RuntimeError("failed to read Present_Position")
+    return units.decode_position_ticks(raw)
 
 
 def _motor_moving(motor: DynamixelMotor) -> bool | None:
     table = getattr(motor, "CONTROL_TABLE", None)
     if table is not None and "Moving" not in table:
         return None
-    try:
-        return bool(int(motor.read_control_table("Moving")))
-    except Exception:
+    raw = read_control_table_safe(motor, "Moving")
+    if raw is None:
         return None
+    return bool(raw)
 
 
 def _within_position_tolerance(

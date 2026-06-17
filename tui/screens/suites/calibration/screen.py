@@ -33,6 +33,7 @@ class CalibrationScreen(SuiteRunnerScreen):
         self._session_ready = False
         self._action_busy = False
         self._refresh_scheduled = False
+        self._refresh_error_count = 0
         self._active_session_test: str | None = None
 
     def populate_tree(self, tree: Tree) -> None:
@@ -42,7 +43,7 @@ class CalibrationScreen(SuiteRunnerScreen):
 
     def on_mount(self) -> None:
         super().on_mount()
-        self.set_interval(0.15, self._poll_display)
+        self.set_interval(0.35, self._poll_display)
         self.set_timer(0, self._select_default_test)
 
     async def _select_default_test(self) -> None:
@@ -252,15 +253,20 @@ class CalibrationScreen(SuiteRunnerScreen):
             self._call_from_thread(self._update_motor_status, status)
             self._call_from_thread(self._update_recorded)
         except Exception as exc:
-            self._call_from_thread(
-                self._write_log,
-                f"[yellow]Refresh failed:[/] {exc}",
-            )
-            self._call_from_thread(self._write_log, traceback.format_exc())
+            self._refresh_error_count += 1
+            if self._refresh_error_count == 1 or self._refresh_error_count % 25 == 0:
+                self._call_from_thread(
+                    self._write_log,
+                    f"[yellow]Refresh failed ({self._refresh_error_count}x):[/] {exc}",
+                )
+                if self._refresh_error_count == 1:
+                    self._call_from_thread(self._write_log, traceback.format_exc())
+        else:
+            self._refresh_error_count = 0
         finally:
             self._refresh_scheduled = False
 
-    @work(thread=True)
+    @work(thread=True, exclusive=True)
     def _run_action(self, action: str, *, jog_command: str | None = None) -> None:
         if not self._session_ready or self._controller is None or self._action_busy:
             return

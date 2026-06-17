@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from harper_arm.calibration.errors import CalibrationError, EmergencyStopError
-from harper_arm.status import MotorStatus, read_motor_status
+from harper_arm.status import MotorStatus, read_joint_live
 from suites.calibration.operator import CalibrationOperator
 from tui.core.paths import RunPaths
 
@@ -75,10 +75,9 @@ class CalibrationSessionController:
 
     def refresh(self) -> tuple[int, MotorStatus]:
         operator = self._require_operator()
+        operator._check_abort()
         with self._operator_lock:
-            position = operator.refresh_position()
-            status = read_motor_status(operator.connected_joint)
-        return position, status
+            return read_joint_live(operator.connected_joint)
 
     def recorded_positions(self) -> tuple[int | None, int | None, int | None]:
         if self._operator is None:
