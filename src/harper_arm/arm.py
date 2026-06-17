@@ -1,3 +1,9 @@
+"""
+Defines the FullArm class, which is a collection of all the joints on the arm.
+Has methods to open and close the arm, configure the joints, and sample the joints. 
+"""
+
+
 from __future__ import annotations
 
 import threading
@@ -7,9 +13,18 @@ from pathlib import Path
 
 from dynio import DynamixelIO, DynamixelMotor
 
-from harper_arm import units
-from harper_arm.config import ArmConfig, load_arm_config, resolve_position_profile_velocity_rpm
-from harper_arm.joint import DEFAULT_CONFIG_PATH, Joint, configure_joint_position_mode
+from harper_arm.config import (
+    ArmConfig,
+    load_arm_config,
+    resolve_position_profile_acceleration_rpm2,
+    resolve_position_profile_velocity_rpm,
+)
+from harper_arm.joint import (
+    DEFAULT_CONFIG_PATH,
+    Joint,
+    apply_motor_position_profile,
+    configure_joint_position_mode,
+)
 from harper_arm.motor import connect_io, disconnect_io, new_motor
 from harper_arm.safety import ensure_torque_enabled_all, torque_off_all
 from harper_arm.sampling import JointSample, sample_joints
@@ -62,11 +77,15 @@ class FullArm:
                 configure_joint_position_mode(motor, self.config.joints[name])
 
     def apply_position_profile_velocities(self) -> None:
-        """Set Profile_Velocity on every joint from arm.yaml (or default)."""
+        """Set position-mode profile registers on every joint from arm.yaml."""
         with self.bus_lock:
             for name, motor in self.motors.items():
-                rpm = resolve_position_profile_velocity_rpm(self.config.joints[name])
-                motor.set_velocity(units.rpm_to_velocity(rpm))
+                joint = self.config.joints[name]
+                apply_motor_position_profile(
+                    motor,
+                    velocity_rpm=resolve_position_profile_velocity_rpm(joint),
+                    acceleration_rpm2=resolve_position_profile_acceleration_rpm2(joint),
+                )
 
     def torque_enable_all(self) -> None:
         """Torque enable all the motors."""
@@ -97,23 +116,35 @@ class FullArm:
             motor=self.motors[joint_name],
             joint=joint_cfg,
             bus_lock=self.bus_lock,
-            _owns_bus=False, # this joint does not own the bus connection, it is shared with the full arm.
+            # The view shares the full-arm serial connection and must not close it.
+            _owns_bus=False,
         )
 
     def prepare_motion_bus(
         self,
         *,
-        joint_name: str,
+        joint_name: str | None = None,
         profile_velocity_rpm: float | None = None,
+        profile_acceleration_rpm2: float | None = None,
     ) -> None:
         """Configure position mode, profile speeds, and ensure torque on every motor."""
         self.configure_position_mode()
         self.apply_position_profile_velocities()
         if profile_velocity_rpm is not None:
             with self.bus_lock:
-                self.motors[joint_name].set_velocity(
-                    units.rpm_to_velocity(profile_velocity_rpm)
-                )
+                targets = self.motors.items() if joint_name is None else [
+                    (joint_name, self.motors[joint_name])
+                ]
+                for name, motor in targets:
+                    joint = self.config.joints[name]
+                    apply_motor_position_profile(
+                        motor,
+                        velocity_rpm=profile_velocity_rpm,
+                        acceleration_rpm2=resolve_position_profile_acceleration_rpm2(
+                            joint,
+                            override_rpm2=profile_acceleration_rpm2,
+                        ),
+                    )
         self.torque_enable_all()
 
     def joint_models(self) -> dict[str, str]:

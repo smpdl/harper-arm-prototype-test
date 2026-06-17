@@ -7,6 +7,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from harper_arm import units
+
 if TYPE_CHECKING:
     from dynio import DynamixelMotor
 
@@ -17,6 +19,8 @@ class SafetyThresholds:
     current_fraction: float = 0.9
     temperature_delta_c: float = 15.0
     position_drift_ticks: int = 50
+    min_voltage_v: float = 11.0
+    max_voltage_v: float = 15.0
 
 @dataclass(frozen=True)
 class SafetyResult:
@@ -62,6 +66,14 @@ class SafetyMonitor:
         drift_result = self._check_position_drift(samples)
         if drift_result is not None:
             return drift_result
+
+        voltage_result = self._check_voltage(samples)
+        if voltage_result is not None:
+            return voltage_result
+
+        hardware_result = self._check_hardware_error(samples)
+        if hardware_result is not None:
+            return hardware_result
 
         return SafetyResult(False, "", None)
 
@@ -163,6 +175,34 @@ class SafetyMonitor:
 
         if worst_joint is not None:
             return SafetyResult(True, "position_drift", worst_joint)
+        return None
+
+    def _check_voltage(self, samples: Mapping[str, JointSample]) -> SafetyResult | None:
+        low = self._thresholds.min_voltage_v
+        high = self._thresholds.max_voltage_v
+        worst_joint: str | None = None
+        worst_delta = 0.0
+
+        for name, sample in samples.items():
+            volts = units.voltage_to_volts(sample.voltage)
+            if volts < low:
+                delta = low - volts
+            elif volts > high:
+                delta = volts - high
+            else:
+                continue
+            if delta >= worst_delta:
+                worst_delta = delta
+                worst_joint = name
+
+        if worst_joint is not None:
+            return SafetyResult(True, "input_voltage", worst_joint)
+        return None
+
+    def _check_hardware_error(self, samples: Mapping[str, JointSample]) -> SafetyResult | None:
+        for name, sample in samples.items():
+            if sample.hardware_error:
+                return SafetyResult(True, "hardware_error", name)
         return None
 
 def torque_off_all(motors: Mapping[str, DynamixelMotor]) -> None:

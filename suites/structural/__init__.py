@@ -6,10 +6,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 from harper_arm.joint import DEFAULT_CONFIG_PATH
-from tui.suite_catalog import STRUCTURAL_TEST_NAMES as ALL_TESTS
+from tui.catalog import STRUCTURAL_TEST_NAMES as ALL_TESTS
 
 from . import max_payload, point_load, self_weight_hold
-from .helpers import DEFAULT_MOTIONS_PATH, DEFAULT_RESULTS_ROOT
+from .helpers import DEFAULT_RESULTS_ROOT
 
 RunFn = Callable[..., Path]
 
@@ -24,7 +24,6 @@ def run(
     test: str,
     *,
     config_path: Path | str = DEFAULT_CONFIG_PATH,
-    motions_path: Path | str = DEFAULT_MOTIONS_PATH,
     results_root: Path = DEFAULT_RESULTS_ROOT,
     **kwargs: object,
 ) -> Path:
@@ -35,7 +34,6 @@ def run(
         raise ValueError(f"unknown structural test {test!r}; known: {known}") from exc
     return runner(
         config_path=config_path,
-        motions_path=motions_path,
         results_root=results_root,
         **kwargs,
     )

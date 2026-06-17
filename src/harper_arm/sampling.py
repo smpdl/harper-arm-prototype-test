@@ -29,6 +29,7 @@ class JointSample:
     current: int
     temperature: int
     voltage: int
+    hardware_error: int = 0
 
 def _read_joint_sample_from_motor(motor: DynamixelMotor, *, joint: str) -> JointSample:
     return JointSample(
@@ -39,6 +40,7 @@ def _read_joint_sample_from_motor(motor: DynamixelMotor, *, joint: str) -> Joint
         current=int(motor.get_current()),
         temperature=int(motor.read_control_table("Present_Temperature")),
         voltage=int(motor.read_control_table("Present_Input_Voltage")),
+        hardware_error=int(motor.read_control_table("Hardware_Error_Status")),
     )
 
 

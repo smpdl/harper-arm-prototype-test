@@ -1,0 +1,26 @@
+# Calibration motion defaults.
+# 
+# During calibration, the arm will move incrementally, and the operator
+# will confirm each safe position before recording. These settings are used
+# to control the speed and size of the steps.
+
+# Profile velocity to use in rpm.
+profile_velocity_rpm: 23 
+
+# Used for Trapezoidal velocity-based profile: max acceleration in rev/min^2 (omit for rectangular profile).
+profile_acceleration_rpm2: 1000
+
+# Small step size to use in degrees.
+step_small_deg: 5 # ~56 units in encoder ticks 
+
+# Large step size to use in degrees.
+step_large_deg: 10 # ~112 units in encoder ticks 
+
+# X-large step size to use in degrees.
+step_xlarge_deg: 30 # ~336 units in encoder ticks 
+
+# Encoder tolerance to use when validating recorded positions in ticks.
+validation_tolerance_ticks: 15
+
+# Repeatability check: approach 50% from min twice (0% -> 50% -> 0% -> 50% -> 0%).
+validation_repeatability_deg: 0.5

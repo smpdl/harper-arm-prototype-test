@@ -6,9 +6,23 @@ uv sync
 
 Run commands from the repository root; config paths like `config/arm.yaml` are relative to the current working directory.
 
-Edit `config/arm.yaml` with your serial port, baud rate, and per-joint IDs/models/limits before connecting hardware. Supported motor models: `xc330-m288-t`, `xl430-w250-t`, `xm430-w350-t`, `xm540-w270-t`. The `current_limit` field is used for software safety thresholds and thermal test targets; it is not written to the motor EEPROM.
+Edit `config/arm.yaml` with your serial port, baud rate, per-joint IDs/models/limits,
+`home_position`, and `direction` before connecting hardware. Supported motor models:
+`xc330-m288-t`, `xl430-w250-t`, `xm430-w350-t`, `xm540-w270-t`. The
+`current_limit` field is used for software safety thresholds and thermal test
+targets; it is not written to the motor EEPROM.
 
-Edit `config/motions.yaml` to define named poses (e.g. `home`) used by structural tests. Each pose must include every joint from `arm.yaml` with tick values within that joint's `position_limits`.
+The calibrated base pose is stored directly on each joint as `home_position`.
+Degree-relative e2e tests compute targets as:
+
+```text
+target_ticks = home_position + direction * degrees_to_ticks(offset_deg)
+```
+
+Edit `config/e2e.yaml` to tune conservative multi-joint motion patterns and
+S-curve limits. The e2e suite uses `s-curve-beta` to stream synchronized
+multi-axis setpoints between confirmed keyframes, and validates every final
+target against `position_limits` before any motor command is sent.
 
 Launch the Textual TUI to browse suites, configure a test, and run it:
 
@@ -16,7 +30,10 @@ Launch the Textual TUI to browse suites, configure a test, and run it:
 uv run test
 ```
 
-Use up/down to pick a test, fill in the options on the right, then press `r` or click Run Test. Press `s` for config/motions/results paths. Payload and point-load tests require `interactive=True` and are intended for direct `run()` calls with stdin, not the TUI.
+The home screen separates `Calibration`, `E2E Motions`, `Motor Tests`,
+`Structural Tests`, and `Settings`. E2E motions use a preview/confirm flow:
+inspect each keyframe target, then press `Move Step` only when the arm area is
+clear. Press `s` for config/e2e/results paths.
 
 You can also call suite `run()` functions directly:
 
@@ -26,6 +43,9 @@ uv run python -c "from suites.motor.ping import run; run(joint='r_sh_flex')"
 
 # Structural suite (all joints)
 uv run python -c "from suites.structural.self_weight_hold import run; run()"
+
+# E2E suite (operator confirms every keyframe in the terminal)
+uv run python -c "import suites.e2e as e2e; e2e.run('wrist_flexion_sweep')"
 ```
 
 Results are written to `results/` as timestamped folders (`metadata.json`, `summary.json`, `data.csv`).

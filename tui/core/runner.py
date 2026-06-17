@@ -1,20 +1,15 @@
-"""Dispatch hardware test suites."""
+"""Dispatch hardware test suites from the TUI."""
 
 from __future__ import annotations
 
 import sys
 from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import dataclass
 from pathlib import Path
 
-from harper_arm.joint import DEFAULT_CONFIG_PATH
 from harper_arm.status import MotorStatus
-from tui.suite_catalog import INTERACTIVE_STRUCTURAL_TESTS, TestSpec
-
-DEFAULT_MOTIONS_PATH = Path("config/motions.yaml")
-DEFAULT_RESULTS_ROOT = Path("results")
-REPO_ROOT = Path(__file__).resolve().parents[1]
+from tui.catalog import TestSpec
+from tui.core.paths import REPO_ROOT, RunPaths
 
 
 def ensure_repo_on_path() -> Path:
@@ -22,13 +17,6 @@ def ensure_repo_on_path() -> Path:
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
     return REPO_ROOT
-
-
-@dataclass
-class RunPaths:
-    config_path: Path = DEFAULT_CONFIG_PATH
-    motions_path: Path = DEFAULT_MOTIONS_PATH
-    results_root: Path = DEFAULT_RESULTS_ROOT
 
 
 class _StreamToCallback:
@@ -79,16 +67,6 @@ def run_test(
     """Run one catalog test and return the results directory."""
     ensure_repo_on_path()
 
-    if (
-        spec.suite == "structural"
-        and spec.name in INTERACTIVE_STRUCTURAL_TESTS
-        and kwargs.get("interactive") is False
-    ):
-        raise ValueError(
-            f"{spec.name} requires interactive=True for operator prompts and load application. "
-            "Enable Interactive prompts or call run(interactive=True) from a terminal."
-        )
-
     with _capture_stdio(log_line):
         if spec.suite == "motor":
             import suites.motor as motor_suite
@@ -101,12 +79,33 @@ def run_test(
                 **kwargs,
             )
 
-        import suites.structural as structural_suite
+        if spec.suite == "structural":
+            import suites.structural as structural_suite
 
-        return structural_suite.run(  # type: ignore[arg-type]
+            return structural_suite.run(  # type: ignore[arg-type]
+                spec.name,
+                config_path=paths.config_path,
+                e2e_config_path=paths.e2e_config_path,
+                results_root=paths.results_root,
+                **kwargs,
+            )
+
+        if spec.suite == "e2e":
+            import suites.e2e as e2e_suite
+
+            return e2e_suite.run(
+                spec.name,
+                config_path=paths.config_path,
+                e2e_config_path=paths.e2e_config_path,
+                results_root=paths.results_root,
+                **kwargs,
+            )
+
+        import suites.calibration as calibration_suite
+
+        return calibration_suite.run(  # type: ignore[arg-type]
             spec.name,
             config_path=paths.config_path,
-            motions_path=paths.motions_path,
             results_root=paths.results_root,
             **kwargs,
         )

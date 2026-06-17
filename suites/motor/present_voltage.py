@@ -3,7 +3,7 @@ Present Voltage Test.
 
 Reads the present voltage of a motor using the Present_Input_Voltage control table.
 
-Reads the present voltage of a motor and writes a row to the results CSV file with the timestamp, joint name, and voltage.
+Reads voltage and writes timestamp, joint name, and voltage to CSV.
 Sets the summary to the voltage. Returns the path to the results directory.
 """
 

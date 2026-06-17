@@ -5,8 +5,11 @@ from __future__ import annotations
 TICKS_PER_REV = 4096
 DEGREES_PER_TICK = 360.0 / TICKS_PER_REV
 
-# Present_Velocity: 0.229 rev/min per unit (X-series, protocol 2.0).
+# Present_Velocity / Profile_Velocity: 0.229 rev/min per unit (X-series, protocol 2.0).
 RPM_PER_VELOCITY_UNIT = 0.229
+
+# Profile_Acceleration in velocity-based profile mode: 214.577 rev/min² per unit.
+RPM2_PER_ACCELERATION_UNIT = 214.577
 
 # Present_Input_Voltage: 0.1 V per unit.
 VOLTS_PER_VOLTAGE_UNIT = 0.1
@@ -36,6 +39,11 @@ def rpm_to_velocity(rpm: float) -> int:
     return int(round(rpm / RPM_PER_VELOCITY_UNIT))
 
 
+def rpm2_to_acceleration(rpm2: float) -> int:
+    """Convert rev/min² to the nearest Profile_Acceleration register unit."""
+    return int(round(rpm2 / RPM2_PER_ACCELERATION_UNIT))
+
+
 def voltage_to_volts(voltage: int) -> float:
     """Convert Present_Input_Voltage register units to volts."""
     return voltage * VOLTS_PER_VOLTAGE_UNIT
@@ -49,7 +57,6 @@ def temperature_to_celsius(temperature: int) -> float:
 def _normalize_model(model: str) -> str:
     return model.strip().lower().replace("_", "-")
 
-
 def current_ma_per_unit(model: str) -> float:
     """Return mA per Goal/Present Current register unit for a motor model name."""
     name = _normalize_model(model)
@@ -62,7 +69,6 @@ def current_ma_per_unit(model: str) -> float:
 def current_to_ma(current: int, *, model: str) -> float:
     """Convert signed Present/Goal Current register units to milliamps."""
     return current * current_ma_per_unit(model)
-
 
 def thermal_sample_current_ma(
     current: int,

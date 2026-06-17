@@ -36,6 +36,27 @@ def _require_register(
         )
 
 
+def apply_motor_position_profile(
+    motor: DynamixelMotor,
+    *,
+    velocity_rpm: float,
+    acceleration_rpm2: float | None = None,
+) -> None:
+    """Configure Profile_Velocity and optionally Profile_Acceleration.
+
+    When ``acceleration_rpm2`` is a positive value, the servo uses a trapezoidal
+    velocity-based profile (both registers non-zero). When it is ``None``, only
+    Profile_Velocity is written and acceleration is left unchanged. When it is
+    ``0``, Profile_Acceleration is cleared for a rectangular profile.
+    """
+    motor.set_velocity(units.rpm_to_velocity(velocity_rpm))
+    if acceleration_rpm2 is None:
+        return
+    motor.set_acceleration(
+        0 if acceleration_rpm2 <= 0 else units.rpm2_to_acceleration(acceleration_rpm2)
+    )
+
+
 def configure_joint_position_mode(motor: DynamixelMotor, joint: JointConfig) -> None:
     """Configure the joint in position mode.
 
@@ -97,10 +118,23 @@ class Joint:
             self.motor.torque_disable()
             configure_joint_position_mode(self.motor, self.joint)
 
+    def set_position_profile_rpm(
+        self,
+        velocity_rpm: float,
+        *,
+        acceleration_rpm2: float | None = None,
+    ) -> None:
+        """Set position-mode profile registers (trapezoidal when acceleration is set)."""
+        with self.bus_lock:
+            apply_motor_position_profile(
+                self.motor,
+                velocity_rpm=velocity_rpm,
+                acceleration_rpm2=acceleration_rpm2,
+            )
+
     def set_profile_velocity_rpm(self, rpm: float) -> None:
         """Set Profile_Velocity for position-mode moves (lower rpm = slower motion)."""
-        with self.bus_lock:
-            self.motor.set_velocity(units.rpm_to_velocity(rpm))
+        self.set_position_profile_rpm(rpm)
 
     def configure_velocity_mode(self, *, enable_torque: bool = True) -> None:
         """Switch to velocity mode. Torque is disabled while mode registers are written."""
@@ -109,93 +143,6 @@ class Joint:
             self.motor.set_velocity_mode()
             if enable_torque:
                 self.motor.torque_enable()
-
-    def apply_thermal_load(self, *, load_fraction: float) -> Mapping[str, Any]:
-        """Apply sustained load at ``load_fraction`` of arm.yaml ``current_limit``.
-
-        XM/XC motors use current control mode (Goal Current). XL430 uses PWM mode
-        because it has no Goal Current register.
-        """
-        if not 0 < load_fraction <= 1:
-            raise ValueError("load_fraction must be in (0, 1].")
-
-        with self.bus_lock:
-            self.motor.torque_disable()
-            if "Hardware_Error_Status" in self.motor.CONTROL_TABLE:
-                error = _read_register(self.motor, "Hardware_Error_Status")
-                if error:
-                    raise RuntimeError(
-                        f"{self.joint_name}: hardware error status 0x{error:02x}; "
-                        "power-cycle the motor before running thermal rise"
-                    )
-            table = self.motor.CONTROL_TABLE
-
-            if "Goal_Current" in table:
-                goal_current = int(round(self.joint.current_limit * load_fraction))
-                self.motor.write_control_table("Operating_Mode", CURRENT_CONTROL_MODE)
-                self.motor.torque_enable()
-                self.motor.write_control_table("Goal_Current", goal_current)
-                _require_register(
-                    self.motor,
-                    "Operating_Mode",
-                    CURRENT_CONTROL_MODE,
-                    joint_name=self.joint_name,
-                )
-                _require_register(
-                    self.motor,
-                    "Torque_Enable",
-                    1,
-                    joint_name=self.joint_name,
-                )
-                _require_register(
-                    self.motor,
-                    "Goal_Current",
-                    goal_current,
-                    joint_name=self.joint_name,
-                )
-                return {"mode": "current", "goal_current": goal_current}
-
-            if "Goal_PWM" in table:
-                pwm_limit = int(self.motor.read_control_table("PWM_Limit"))
-                goal_pwm = int(round(load_fraction * pwm_limit))
-                self.motor.write_control_table("Operating_Mode", PWM_CONTROL_MODE)
-                self.motor.torque_enable()
-                self.motor.write_control_table("Goal_PWM", goal_pwm)
-                _require_register(
-                    self.motor,
-                    "Operating_Mode",
-                    PWM_CONTROL_MODE,
-                    joint_name=self.joint_name,
-                )
-                _require_register(
-                    self.motor,
-                    "Torque_Enable",
-                    1,
-                    joint_name=self.joint_name,
-                )
-                _require_register(
-                    self.motor,
-                    "Goal_PWM",
-                    goal_pwm,
-                    joint_name=self.joint_name,
-                )
-                return {
-                    "mode": "pwm",
-                    "goal_pwm": goal_pwm,
-                    "pwm_limit": pwm_limit,
-                }
-
-            raise RuntimeError(
-                f"joint {self.joint_name!r} ({self.joint.model}) does not support thermal load"
-            )
-
-    def release_thermal_load(self) -> None:
-        with self.bus_lock:
-            table = self.motor.CONTROL_TABLE
-            if "Goal_Current" in table:
-                self.motor.write_control_table("Goal_Current", 0)
-            elif "Goal_PWM" in table:
-                self.motor.write_control_table("Goal_PWM", 0)
 
     def torque_enable(self) -> None:
         with self.bus_lock:

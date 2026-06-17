@@ -12,8 +12,10 @@ from typing import Any
 from harper_arm.arm import FullArm
 from harper_arm.config import (
     load_arm_config,
-    load_motions_config,
-    resolve_pose,
+    require_arm_calibrated,
+    require_joint_calibrated,
+    resolve_home_pose,
+    resolve_position_profile_acceleration_rpm2,
     resolve_position_profile_velocity_rpm,
 )
 from harper_arm.joint import DEFAULT_CONFIG_PATH, Joint
@@ -21,9 +23,8 @@ from harper_arm.logging import TestRun
 from harper_arm.motor import POSITION_TOLERANCE_TICKS, move_to_ticks
 from harper_arm.sampling import JointSample, read_joint_sample
 from harper_arm.status import MotorStatus, read_motor_status
-from tui.suite_catalog import MOTOR_MOTION_TESTS, MOTOR_POSITION_TESTS, MOTOR_WHOLE_ARM_TESTS
+from tui.catalog import MOTOR_MOTION_TESTS, MOTOR_POSITION_TESTS, MOTOR_WHOLE_ARM_TESTS
 
-DEFAULT_MOTIONS_PATH = Path("config/motions.yaml")
 DEFAULT_BASE_POSE = "home"
 DEFAULT_RESULTS_ROOT = Path("results")
 STATUS_POLL_INTERVAL_S = 0.25
@@ -48,7 +49,10 @@ def configure_position_motion(
         override_rpm=profile_velocity_rpm,
     )
     connected_joint.configure_position_mode()
-    connected_joint.set_profile_velocity_rpm(rpm)
+    connected_joint.set_position_profile_rpm(
+        rpm,
+        acceleration_rpm2=resolve_position_profile_acceleration_rpm2(connected_joint.joint),
+    )
     return rpm
 
 
@@ -56,11 +60,12 @@ def load_base_pose_ticks(
     pose_name: str = DEFAULT_BASE_POSE,
     *,
     config_path: Path | str = DEFAULT_CONFIG_PATH,
-    motions_path: Path | str = DEFAULT_MOTIONS_PATH,
 ) -> dict[str, int]:
+    """Return home ticks from ``arm.yaml`` for whole-arm setup/teardown."""
+    if pose_name != DEFAULT_BASE_POSE:
+        raise ValueError("only the calibrated home base pose is supported")
     arm_config = load_arm_config(config_path)
-    motions = load_motions_config(motions_path)
-    return resolve_pose(motions, pose_name, arm=arm_config)
+    return resolve_home_pose(arm_config)
 
 
 def at_base_position(
@@ -90,15 +95,10 @@ def ensure_base_position(
     arm: FullArm,
     *,
     config_path: Path | str = DEFAULT_CONFIG_PATH,
-    motions_path: Path | str = DEFAULT_MOTIONS_PATH,
     pose_name: str = DEFAULT_BASE_POSE,
 ) -> None:
     """Verify the arm is at base pose, moving there first when needed."""
-    pose = load_base_pose_ticks(
-        pose_name,
-        config_path=config_path,
-        motions_path=motions_path,
-    )
+    pose = load_base_pose_ticks(pose_name, config_path=config_path)
     if at_base_position(arm, pose):
         return
     results = move_arm_to_pose(arm, pose)
@@ -110,18 +110,13 @@ def return_to_base_position(
     arm: FullArm,
     *,
     config_path: Path | str = DEFAULT_CONFIG_PATH,
-    motions_path: Path | str = DEFAULT_MOTIONS_PATH,
     pose_name: str = DEFAULT_BASE_POSE,
 ) -> None:
     """Reconfigure position mode and move every joint back to base pose."""
     arm.configure_position_mode()
     arm.apply_position_profile_velocities()
     arm.torque_enable_all()
-    pose = load_base_pose_ticks(
-        pose_name,
-        config_path=config_path,
-        motions_path=motions_path,
-    )
+    pose = load_base_pose_ticks(pose_name, config_path=config_path)
     results = move_arm_to_pose(arm, pose)
     if not all(reached for reached, _ in results.values()):
         raise RuntimeError("failed to return to base position after motion test")
@@ -202,6 +197,12 @@ def motor_test_run(
     pose, and returns there on teardown. Other motion tests open only the joint
     under test. Read-only tests do the same without motion setup.
     """
+    arm_config = load_arm_config(config_path)
+    if test in MOTOR_WHOLE_ARM_TESTS:
+        require_arm_calibrated(arm_config)
+    elif test in MOTOR_MOTION_TESTS:
+        require_joint_calibrated(arm_config.joints[joint_name])
+
     if test in MOTOR_WHOLE_ARM_TESTS:
         arm = FullArm.open(config_path=config_path)
         try:

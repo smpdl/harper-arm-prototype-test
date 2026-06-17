@@ -1,7 +1,7 @@
 """
 Current No Load Test.
 
-Reads the present current of a motor with torque disabled and writes a row to the results CSV file with the timestamp, joint name, and current.
+Reads the present current of a motor with torque disabled and writes one CSV row.
 Sets the summary to the current. Returns the path to the results directory.
 """
 

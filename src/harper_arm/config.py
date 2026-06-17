@@ -1,5 +1,5 @@
 """
-ArmConfig and JointConfig, plus YAML loaders for arm and motion configuration.
+Defines the configuration for the arm, including the joints, and the serial communication parameters.
 """
 
 from __future__ import annotations
@@ -13,9 +13,7 @@ import yaml
 
 from harper_arm.motor import normalize_model, supported_models
 
-# Used when a joint omits position_profile_velocity_rpm in arm.yaml (~factory X-series default).
 DEFAULT_POSITION_PROFILE_VELOCITY_RPM = 23.0
-
 
 @dataclass(frozen=True)
 class JointConfig:
@@ -25,7 +23,11 @@ class JointConfig:
     protocol: int
     position_limits: tuple[int, int]
     current_limit: int
+    home_position: int | None = None
+    calibrated: bool = False
+    direction: int = 1
     position_profile_velocity_rpm: float | None = None
+    position_profile_acceleration_rpm2: float | None = None
 
 
 def resolve_position_profile_velocity_rpm(
@@ -40,15 +42,63 @@ def resolve_position_profile_velocity_rpm(
         return joint.position_profile_velocity_rpm
     return DEFAULT_POSITION_PROFILE_VELOCITY_RPM
 
+
+def resolve_position_profile_acceleration_rpm2(
+    joint: JointConfig,
+    *,
+    override_rpm2: float | None = None,
+) -> float | None:
+    """Return profile acceleration, or None to leave the register unchanged."""
+    if override_rpm2 is not None:
+        return override_rpm2 if override_rpm2 > 0 else None
+    return joint.position_profile_acceleration_rpm2
+
+
+def require_home_position(joint: JointConfig) -> int:
+    """Return a joint's calibrated home position or fail with an actionable error."""
+    if joint.home_position is None:
+        raise ValueError(
+            f"joint {joint.name!r} is missing home_position; calibrate it before "
+            "running home-relative motion tests"    
+        )
+    return joint.home_position
+
+
+def require_joint_calibrated(joint: JointConfig) -> None:
+    """Reject motion when a joint has not been saved from a calibration session."""
+    if not joint.calibrated:
+        raise ValueError(
+            f"joint {joint.name!r} is not calibrated; complete calibration and save "
+            "before running motion tests"
+        )
+    require_home_position(joint)
+
+
+def require_arm_calibrated(
+    arm: ArmConfig,
+    *,
+    joint_names: tuple[str, ...] | None = None,
+) -> None:
+    """Reject motion when any requested joint lacks a saved calibration."""
+    names = joint_names or tuple(arm.joints)
+    unknown = sorted(set(names) - set(arm.joints))
+    if unknown:
+        raise ValueError(f"unknown joints requested for calibration check: {unknown}")
+    uncalibrated = [name for name in names if not arm.joints[name].calibrated]
+    if uncalibrated:
+        joined = ", ".join(uncalibrated)
+        raise ValueError(
+            f"uncalibrated joints: {joined}; calibrate and save every joint before "
+            "running motion tests"
+        )
+    for name in names:
+        require_home_position(arm.joints[name])
+
 @dataclass(frozen=True)
 class ArmConfig:
     serial_port: str
     baud_rate: int
     joints: Mapping[str, JointConfig]
-
-@dataclass(frozen=True)
-class MotionsConfig:
-    poses: Mapping[str, Mapping[str, int]]
 
 def _require_mapping(data: Any, *, label: str) -> dict[str, Any]:
     if not isinstance(data, dict):
@@ -73,6 +123,29 @@ def _parse_joint(name: str, raw: Any) -> JointConfig:
     if low > high:
         raise ValueError(f"joint {name!r} position_limits min must be <= max.")
 
+    home_raw = joint.get("home_position")
+    home_position: int | None
+    if home_raw is None:
+        home_position = None
+    else:
+        home_position = int(home_raw)
+        if home_position < low or home_position > high:
+            raise ValueError(
+                f"joint {name!r} home_position {home_position} must be within "
+                f"position_limits [{low}, {high}]"
+            )
+
+    calibrated = bool(joint.get("calibrated", False))
+    if calibrated and home_position is None:
+        raise ValueError(
+            f"joint {name!r} is marked calibrated but home_position is missing"
+        )
+
+    # direction is the sign of positive degrees for higher-level tests. 
+    direction = int(joint.get("direction", 1))
+    if direction not in {-1, 1}:
+        raise ValueError(f"joint {name!r} direction must be -1 or 1.")
+
     if protocol not in {1, 2}:
         raise ValueError(f"joint {name!r} protocol must be 1 or 2.")
 
@@ -92,6 +165,17 @@ def _parse_joint(name: str, raw: Any) -> JointConfig:
                 f"joint {name!r} position_profile_velocity_rpm must be positive."
             )
 
+    profile_accel_raw = joint.get("position_profile_acceleration_rpm2")
+    position_profile_acceleration_rpm2: float | None
+    if profile_accel_raw is None:
+        position_profile_acceleration_rpm2 = None
+    else:
+        position_profile_acceleration_rpm2 = float(profile_accel_raw)
+        if position_profile_acceleration_rpm2 <= 0:
+            raise ValueError(
+                f"joint {name!r} position_profile_acceleration_rpm2 must be positive."
+            )
+
     return JointConfig(
         name=name,
         id=motor_id,
@@ -99,7 +183,11 @@ def _parse_joint(name: str, raw: Any) -> JointConfig:
         protocol=protocol,
         position_limits=(low, high),
         current_limit=current_limit,
+        home_position=home_position,
+        calibrated=calibrated,
+        direction=direction,
         position_profile_velocity_rpm=position_profile_velocity_rpm,
+        position_profile_acceleration_rpm2=position_profile_acceleration_rpm2,
     )
 
 
@@ -141,67 +229,14 @@ def load_arm_config(path: Path | str = Path("config/arm.yaml")) -> ArmConfig:
     return ArmConfig(serial_port=serial_port, baud_rate=baud_rate, joints=joints)
 
 
-def load_motions_config(path: Path | str = Path("config/motions.yaml")) -> MotionsConfig:
-    """Load the named poses from the YAML file.
-    
-    Args:
-        path: The path to the YAML file. Defaults to the default configuration path.
-
-    Returns:
-        A MotionsConfig object.
-    """
-    config_path = Path(path)
-    raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    document = _require_mapping(raw, label="motions config root")
-
-    poses_raw = document.get("poses")
-    if poses_raw is None:
-        return MotionsConfig(poses={})
-    poses_section = _require_mapping(poses_raw, label="poses")
-
-    poses: dict[str, dict[str, int]] = {}
-    for pose_name, joints_raw in poses_section.items():
-        joints = _require_mapping(joints_raw, label=f"poses.{pose_name}")
-        poses[pose_name] = {joint: int(ticks) for joint, ticks in joints.items()}
-
-    return MotionsConfig(poses=poses)
-
-def resolve_pose(
-    motions: MotionsConfig,
-    pose_name: str,
-    *,
+def resolve_home_pose(
     arm: ArmConfig,
+    *,
+    joint_names: tuple[str, ...] | None = None,
 ) -> dict[str, int]:
-    """Return the tick goals for the pose name, validating joint names against the arm.
-    
-    Args:
-        motions: The motions configuration.
-        pose_name: The name of the pose.
-        arm: The arm configuration.
-
-    Returns:
-        A dictionary of the tick goals.
-    """
-    try:
-        raw_pose = motions.poses[pose_name]
-    except KeyError as exc:
-        known = ", ".join(sorted(motions.poses))
-        raise ValueError(f"unknown pose {pose_name!r}; known: {known}") from exc
-
-    unknown = sorted(set(raw_pose) - set(arm.joints))
+    """Return calibrated home ticks for the requested joints."""
+    names = joint_names or tuple(arm.joints)
+    unknown = sorted(set(names) - set(arm.joints))
     if unknown:
-        raise ValueError(f"pose {pose_name!r} references unknown joints: {unknown}")
-
-    missing = sorted(set(arm.joints) - set(raw_pose))
-    if missing:
-        raise ValueError(f"pose {pose_name!r} missing joints: {missing}")
-
-    out_of_range: list[str] = []
-    for joint_name, ticks in raw_pose.items():
-        low, high = arm.joints[joint_name].position_limits
-        if ticks < low or ticks > high:
-            out_of_range.append(f"{joint_name}={ticks} (limits [{low}, {high}])")
-    if out_of_range:
-        raise ValueError(f"pose {pose_name!r} has out-of-range ticks: {out_of_range}")
-
-    return dict(raw_pose)
+        raise ValueError(f"unknown joints requested for home pose: {unknown}")
+    return {name: require_home_position(arm.joints[name]) for name in names}

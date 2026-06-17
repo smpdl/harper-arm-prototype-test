@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Mapping
 
 from dynio import DynamixelIO, DynamixelMotor
+from dynio.group_io import resolve_sync_register
 
 MOVE_TIMEOUT_S = 10.0
 POSITION_TOLERANCE_TICKS = 10
+
 
 _MODELS = {
     "xc330-m288-t": "new_xc330m288t",
@@ -25,6 +28,7 @@ def normalize_model(model: str) -> str:
 def supported_models() -> tuple[str, ...]:
     return tuple(sorted(_MODELS))
 
+
 def new_motor(
     io: DynamixelIO,
     id: int,
@@ -39,8 +43,10 @@ def new_motor(
         raise ValueError(f"unknown motor model {model!r}; known: {known}") from exc
     return getattr(io, factory_name)(id, protocol, None)
 
+
 def connect_io(device_name: str, baud_rate: int) -> DynamixelIO:
     return DynamixelIO(device_name, baud_rate)
+
 
 def disconnect_io(io: DynamixelIO | None) -> None:
     if io is None:
@@ -49,6 +55,159 @@ def disconnect_io(io: DynamixelIO | None) -> None:
     if port_handler is not None:
         port_handler.closePort()
 
+
+def _motor_bus(bus: object, joint_name: str | None) -> tuple[threading.Lock, DynamixelMotor]:
+    bus_lock: threading.Lock = bus.bus_lock  # type: ignore[attr-defined]
+    if joint_name is None:
+        motor: DynamixelMotor = bus.motor  # type: ignore[attr-defined]
+    else:
+        motor = bus.motors[joint_name]  # type: ignore[attr-defined]
+    return bus_lock, motor
+
+
+def _selected_motors(
+    bus: object,
+    joint_names: Mapping[str, object] | tuple[str, ...] | list[str],
+) -> dict[str, DynamixelMotor]:
+    """Return configured motors for ``joint_names`` only (not the full arm)."""
+    motors: Mapping[str, DynamixelMotor] = bus.motors  # type: ignore[attr-defined]
+    names = list(joint_names)
+    unknown = sorted(set(names) - set(motors))
+    if unknown:
+        raise ValueError(f"unknown joints: {unknown}")
+    return {name: motors[name] for name in names}
+
+
+def _motor_ids_by_joint(selected: Mapping[str, DynamixelMotor]) -> dict[int, str]:
+    return {motor.dxl_id: joint_name for joint_name, motor in selected.items()}
+
+
+def _can_sync_register(motors: list[DynamixelMotor], register_name: str) -> bool:
+    if not motors:
+        return False
+    try:
+        resolve_sync_register(motors, register_name)
+    except ValueError:
+        return False
+    return True
+
+
+def write_positions_sequential(
+    bus: object,
+    positions: Mapping[str, int],
+) -> None:
+    """Write Goal_Position one joint at a time.
+
+    Use this for all non-E2E motion paths. Each joint receives its goal in a
+    separate bus transaction.
+    """
+    if not positions:
+        return
+
+    for joint_name, target_ticks in positions.items():
+        bus_lock, motor = _motor_bus(bus, joint_name)
+        with bus_lock:
+            motor.set_position(target_ticks)
+
+
+def set_positions(
+    bus: object,
+    positions: Mapping[str, int],
+) -> None:
+    """Write Goal_Position for multiple joints in one bus transaction (E2E only).
+
+    Uses Dynamixel sync write when every selected motor shares the register
+    address/size; otherwise falls back to bulk write. Non-E2E suites should
+    call ``write_positions_sequential`` instead.
+    """
+    if not positions:
+        return
+
+    selected = _selected_motors(bus, positions)
+    bus_lock: threading.Lock = bus.bus_lock  # type: ignore[attr-defined]
+    io: DynamixelIO = bus.io  # type: ignore[attr-defined]
+    motor_list = list(selected.values())
+
+    with bus_lock:
+        if _can_sync_register(motor_list, "Goal_Position"):
+            writes = {
+                selected[joint_name]: target_ticks
+                for joint_name, target_ticks in positions.items()
+            }
+            io.sync_write(writes, register_name="Goal_Position")
+            return
+
+        specs = [
+            (selected[joint_name], "Goal_Position", target_ticks)
+            for joint_name, target_ticks in positions.items()
+        ]
+        io.bulk_write(specs)
+
+
+def read_positions(
+    bus: object,
+    joint_names: Mapping[str, object] | tuple[str, ...] | list[str],
+) -> dict[str, int]:
+    """Read Present_Position for a subset of configured joints in one bus transaction."""
+    names = list(joint_names)
+    if not names:
+        return {}
+
+    selected = _selected_motors(bus, names)
+    bus_lock: threading.Lock = bus.bus_lock  # type: ignore[attr-defined]
+    io: DynamixelIO = bus.io  # type: ignore[attr-defined]
+    motor_list = [selected[name] for name in names]
+    id_to_joint = _motor_ids_by_joint(selected)
+
+    with bus_lock:
+        if _can_sync_register(motor_list, "Present_Position"):
+            raw = io.sync_read(motor_list, "Present_Position")
+        else:
+            specs = [(selected[name], "Present_Position") for name in names]
+            raw = io.bulk_read(specs)
+
+    return {id_to_joint[dxl_id]: int(value) for dxl_id, value in raw.items()}
+
+
+def move_positions_to_ticks(
+    bus: object,
+    positions: Mapping[str, int],
+    *,
+    timeout_s: float = MOVE_TIMEOUT_S,
+    tolerance_ticks: int = POSITION_TOLERANCE_TICKS,
+) -> dict[str, tuple[bool, int]]:
+    """Move a subset of joints together and wait until all settle or time out."""
+    if not positions:
+        return {}
+
+    write_positions_sequential(bus, positions)
+
+    joint_names = list(positions)
+    deadline = time.monotonic() + timeout_s
+    measured: dict[str, int] = {}
+    while time.monotonic() < deadline:
+        measured = {}
+        for joint_name in joint_names:
+            bus_lock, motor = _motor_bus(bus, joint_name)
+            with bus_lock:
+                measured[joint_name] = int(motor.get_position())
+        if all(
+            abs(measured[joint_name] - target_ticks) <= tolerance_ticks
+            for joint_name, target_ticks in positions.items()
+        ):
+            return {
+                joint_name: (True, measured[joint_name]) for joint_name in positions
+            }
+        time.sleep(0.05)
+
+    return {
+        joint_name: (
+            abs(measured.get(joint_name, positions[joint_name]) - positions[joint_name])
+            <= tolerance_ticks,
+            measured.get(joint_name, positions[joint_name]),
+        )
+        for joint_name in positions
+    }
 
 def move_to_ticks(
     bus: object,
@@ -63,12 +222,7 @@ def move_to_ticks(
     ``bus`` must expose ``bus_lock`` and either ``motor`` (single joint) or
     ``motors`` (full arm, with ``joint_name`` set).
     """
-    bus_lock: threading.Lock = bus.bus_lock  # type: ignore[attr-defined]
-    if joint_name is None:
-        motor: DynamixelMotor = bus.motor  # type: ignore[attr-defined]
-    else:
-        motor = bus.motors[joint_name]  # type: ignore[attr-defined]
-
+    bus_lock, motor = _motor_bus(bus, joint_name)
     with bus_lock:
         motor.set_position(target_ticks)
         measured_ticks = int(motor.get_position())

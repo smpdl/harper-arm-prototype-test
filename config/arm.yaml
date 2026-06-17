@@ -3,12 +3,6 @@
 # Position limits are raw encoder ticks (1 tick = 1 pulse).
 # X-series resolution is 4096 ticks/rev (0 ~ 4095 in single-turn position mode).
 #
-# Encoder ticks <-> degrees:
-#   degrees = ticks * (360 / 4096)   
-#   ticks   = degrees * (4096 / 360) 
-#
-# Example: 1500 ticks -> 1500 * 360 / 4096 ~= 131.8 deg
-#
 # Extended / multi-turn joints may use ticks outside 0..4095; same formula applies.
 
 # Current limits are Goal Current register units (not mA).
@@ -21,79 +15,126 @@
 # (see conversion notes above). This may differ from the factory EEPROM default
 # for Current Limit(38) (e.g. XM430 default 1193 vs 1004 for 2.7 A).
 
-# position_profile_velocity_rpm (optional): Profile_Velocity for position-mode moves.
-# Omit to use the code default (23 rpm). Motor tests may override per run via TUI/CLI.
+# Direction of the joint in arm.yaml decides whether a positive offset increases
+# or decreases encoder ticks. For example, with home_position = 2048 and
+# direction = 1, +90deg -> tick 3072; with direction = -1, +90deg -> tick 1024.
+
+# Home position is the position of the joint when it is at its home position.
+# calibrated must be true (set automatically when saving from the TUI) before
+# motion tests will run.
 
 serial:
   port: "/dev/ttyUSB0"
-  baud_rate: 57600 
+  baud_rate: 115200
 
 joints:
-  r_sh_flex: # still need to calibrate this
+  r_sh_flex:
     id: 1
     model: xm540-w270-t
     protocol: 2
     position_limits: [0, 4095]
+    home_position: null
+    calibrated: false
+    direction: 1
+    position_profile_acceleration_rpm2: 1000
     current_limit: 2045
-    position_profile_velocity_rpm: 12
   r_sh_abd:
     id: 2
     model: xm540-w270-t
     protocol: 2
     position_limits: [1500, 3200]
+    home_position: null
+    calibrated: false
+    direction: 1
+    position_profile_acceleration_rpm2: 1000
     current_limit: 2045
-    position_profile_velocity_rpm: 12
   r_sh_rot:
     id: 3
     model: xm430-w350-t
     protocol: 2
     position_limits: [1500, 4500]
+    home_position: null
+    calibrated: false
+    direction: 1
+    position_profile_acceleration_rpm2: 1000
     current_limit: 1004
   r_elb_flex:
     id: 4
     model: xl430-w250-t
     protocol: 2
     position_limits: [-15500, 5500]
+    home_position: null
+    calibrated: false
+    direction: 1
+    position_profile_acceleration_rpm2: 1000
     current_limit: 1400
-  r_farm_rot: # still need to calibrate this
+  r_farm_rot:
     id: 5
     model: xl430-w250-t
     protocol: 2
     position_limits: [0, 4095]
+    home_position: null
+    calibrated: false
+    direction: 1
+    position_profile_acceleration_rpm2: 1000
     current_limit: 1400
   r_wrist_flex:
     id: 6
     model: xl430-w250-t
     protocol: 2
     position_limits: [3200, 4800]
+    home_position: null
+    calibrated: false
+    direction: 1
+    position_profile_acceleration_rpm2: 1000
     current_limit: 1400
   r_fin_thumb:
     id: 7
     model: xc330-m288-t
     protocol: 2
     position_limits: [2500, 5500]
+    home_position: null
+    calibrated: false
+    direction: 1
+    position_profile_acceleration_rpm2: 1000
     current_limit: 2150
   r_fin_index:
     id: 8
     model: xc330-m288-t
     protocol: 2
     position_limits: [-500, 3200]
+    home_position: null
+    calibrated: false
+    direction: 1
+    position_profile_acceleration_rpm2: 1000
     current_limit: 2150
   r_fin_middle:
     id: 9
     model: xc330-m288-t
     protocol: 2
     position_limits: [-2000, 1900]
+    home_position: null
+    calibrated: false
+    direction: 1
+    position_profile_acceleration_rpm2: 1000
     current_limit: 2150
   r_fin_ring:
     id: 10
     model: xc330-m288-t
     protocol: 2
     position_limits: [1500, 5500]
+    home_position: null
+    calibrated: false
+    direction: 1
+    position_profile_acceleration_rpm2: 1000
     current_limit: 2150
   r_fin_pinky:
     id: 11
     model: xc330-m288-t
     protocol: 2
     position_limits: [3000, 6000]
+    home_position: null
+    calibrated: false
+    direction: 1
+    position_profile_acceleration_rpm2: 1000
     current_limit: 2150

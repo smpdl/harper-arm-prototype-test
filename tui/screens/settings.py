@@ -10,7 +10,7 @@ from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label
 
-from tui.runner import RunPaths
+from tui.core.paths import RunPaths
 
 
 class SettingsScreen(ModalScreen[bool]):
@@ -23,19 +23,7 @@ class SettingsScreen(ModalScreen[bool]):
         width: 72;
         height: auto;
         max-height: 80%;
-        border: thick $accent;
-        background: $surface;
         padding: 1 2;
-    }
-
-    #settings-dialog Input {
-        margin-bottom: 1;
-    }
-
-    #settings-actions {
-        height: auto;
-        margin-top: 1;
-        align: right middle;
     }
     """
 
@@ -48,13 +36,13 @@ class SettingsScreen(ModalScreen[bool]):
             yield Label("Paths", id="settings-title")
             yield Label("Arm config")
             yield Input(str(self._paths.config_path), id="config-path")
-            yield Label("Motions config")
-            yield Input(str(self._paths.motions_path), id="motions-path")
+            yield Label("E2E motion config")
+            yield Input(str(self._paths.e2e_config_path), id="e2e-config-path")
             yield Label("Results root")
             yield Input(str(self._paths.results_root), id="results-root")
             with Horizontal(id="settings-actions"):
-                yield Button("Cancel", variant="default", id="cancel")
-                yield Button("Save", variant="primary", id="save")
+                yield Button("Cancel", classes="btn-black", id="cancel")
+                yield Button("Save", classes="btn-run", id="save")
 
     @on(Button.Pressed, "#cancel")
     def cancel(self) -> None:
@@ -62,7 +50,9 @@ class SettingsScreen(ModalScreen[bool]):
 
     @on(Button.Pressed, "#save")
     def save(self) -> None:
-        self._paths.config_path = Path(self.query_one("#config-path", Input).value)
-        self._paths.motions_path = Path(self.query_one("#motions-path", Input).value)
-        self._paths.results_root = Path(self.query_one("#results-root", Input).value)
+        self._paths.config_path = Path(self.query_one("#config-path", Input).value.strip())
+        self._paths.e2e_config_path = Path(
+            self.query_one("#e2e-config-path", Input).value.strip()
+        )
+        self._paths.results_root = Path(self.query_one("#results-root", Input).value.strip())
         self.dismiss(True)

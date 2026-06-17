@@ -1,9 +1,10 @@
 """
 Motor Ping Test.
 
-Pings a single motor and returns whether it responded. Writes a row to the results CSV file with the
-timestamp, joint name, whether the motor responded, and the message from the motor. Sets the summary to
-whether the motor responded and the message from the motor. Returns the path to the results directory.
+Pings a single motor and records whether it responded.
+
+Writes timestamp, joint, response status, and message to the result CSV.
+Sets the summary to the response status and returns the result directory.
 """
 
 from __future__ import annotations

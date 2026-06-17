@@ -3,7 +3,7 @@ Present Temperature Test.
 
 Reads the present temperature of a motor using the Present_Temperature control table.
 
-Reads the present temperature of a motor and writes a row to the results CSV file with the timestamp, joint name, and temperature.
+Reads temperature and writes timestamp, joint name, and temperature to CSV.
 Sets the summary to the temperature. Returns the path to the results directory.
 """
 

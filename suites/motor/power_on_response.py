@@ -3,8 +3,8 @@ Power On Response Test.
 
 Enables torque and commands a +10deg position step.
 
-Writes a row to the results CSV file with the timestamp, joint name, start position, end position, delta position, duration, and success flag.
-Sets the summary to the profile velocity, success flag, start position, end position, and delta position. Returns the path to the results directory.
+Writes start/end position, delta, duration, and success flag.
+Sets the summary to the applied profile velocity and movement result.
 """
 
 from __future__ import annotations
@@ -82,4 +82,5 @@ def run(
             duration_s=duration_s,
         )
         time.sleep(PRE_RETURN_PAUSE_S)
+        move_to_ticks(connected_joint, start_ticks)
         return recorder.run_dir

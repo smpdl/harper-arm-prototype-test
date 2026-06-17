@@ -220,6 +220,7 @@ __marimo__/
 # Local run artifacts
 results/*
 !results/.gitkeep
+calibration.partial.yaml
 
 # Visual Studio Code
 .vscode/

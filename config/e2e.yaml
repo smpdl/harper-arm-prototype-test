@@ -1,0 +1,182 @@
+# Home-relative motion patterns for the testing of the HARPER arm.
+#
+# Offsets are degrees from the home position of each joint in
+# config/arm.yaml.  The direction of the joint in arm.yaml decides whether a positive
+# offset increases or decreases encoder ticks.
+#
+# Keyframes are confirmed steps in a motion pattern.  Each keyframe is one
+# move command:
+#
+#   - Every joint listed in a keyframe's offsets_deg moves at the same time on a
+#     synchronized S-curve and finishes together.
+#   - Joints omitted from offsets_deg are not commanded and hold their current
+#     position.
+#   - To move joints one after another, use separate keyframes (one motion per
+#     keyframe).
+#
+# Profile_Velocity in RPM to use for the motion.
+default_profile_velocity_rpm: 23
+#
+# Trapezoidal ramp in rev/min^2 (Profile_Acceleration register; both velocity and
+# acceleration must be non-zero for trapezoidal position-mode profiles).
+default_profile_acceleration_rpm2: 1000
+#
+# S-curve motion.
+#
+# E2E moves stream many intermediate Goal Position commands along a smooth
+# S-curve instead of jumping straight to the final pose. These limits shape
+# that planned path. All joints in a keyframe share one duration so they finish
+# together. Lower values = slower, gentler motion; higher values = faster but
+# rougher and more likely to overshoot or trip safety limits.
+#
+# Peak joint speed during the S-curve, in deg/s.
+default_scurve_max_velocity_deg_s: 138 # ~23rpm @ 4096 ticks/rev
+# Peak rate of change of speed, in deg/s^2. Controls how
+# quickly the arm ramps up and down (jerk is still bounded by the S-curve shape).
+default_scurve_max_acceleration_deg_s2: 40 # ~66rpm^2 @ 4096 ticks/rev
+# Seconds between streamed position setpoints. Smaller = smoother tracking and
+# more bus traffic; larger = coarser steps (may look stair-stepped on fast moves).
+default_scurve_sample_period_s: 0.1
+
+# Seconds to hold each keyframe after the move completes before the next step.
+default_hold_s: 5.0
+
+tests:
+  reach_sideways:
+    label: Reach sideways
+    keyframes:
+      - name: open shoulder
+        offsets_deg:
+          r_sh_abd: 12 # open out to the side
+          r_sh_rot: 8  # rotate to open the palm outwards
+      - name: return near home
+        offsets_deg:
+          r_sh_abd: 0
+          r_sh_rot: 0
+
+  reach_overhead:
+    label: Reach overhead
+    keyframes:
+      - name: lift shoulder
+        offsets_deg:
+          r_sh_flex: 12 # open up in the front
+          r_sh_abd: 6 # open out to the side
+          r_elb_flex: -8 # bend the elbow 
+      - name: return near home
+        offsets_deg:
+          r_sh_flex: 0
+          r_sh_abd: 0
+          r_elb_flex: 0
+
+  arm_wave:
+    label: Arm wave
+    keyframes:
+      - name: wave left
+        offsets_deg:
+          r_sh_abd: 10 # open out to the side
+          r_farm_rot: 8 # rotate the forearm so that the palm faces up in the front
+          r_elb_flex: 12 # bend the elbow 
+      - name: wave right
+        offsets_deg:
+          r_elb_flex: -6
+      - name: return near home
+        offsets_deg:
+          r_sh_abd: 0
+          r_elb_flex: 0
+          r_farm_rot: 0
+
+  wrist_flexion_sweep:
+    label: Wrist flexion sweep
+    keyframes:
+      - name: wrist flex
+        offsets_deg:
+          r_wrist_flex: 12
+      - name: wrist extend
+        offsets_deg:
+          r_wrist_flex: -12
+      - name: wrist home
+        offsets_deg:
+          r_wrist_flex: 0
+
+  forearm_rotation_sweep:
+    label: Forearm rotation sweep
+    keyframes:
+      - name: pronate
+        offsets_deg:
+          r_farm_rot: 15
+      - name: supinate
+        offsets_deg:
+          r_farm_rot: -15
+      - name: forearm home
+        offsets_deg:
+          r_farm_rot: 0
+
+  handshake_motion:
+    label: Handshake motion
+    keyframes:
+      - name: present hand
+        offsets_deg:
+          r_sh_flex: 6
+          r_sh_abd: 8
+          r_elb_flex: 12
+          r_wrist_flex: 4
+      - name: shake down
+        offsets_deg:
+          r_sh_flex: 4
+          r_sh_abd: 8
+          r_elb_flex: 6
+      - name: shake up
+        offsets_deg:
+          r_sh_flex: 8
+          r_sh_abd: 8
+          r_elb_flex: 14
+      - name: return near home
+        offsets_deg:
+          r_sh_flex: 0
+          r_sh_abd: 0
+          r_elb_flex: 0
+          r_wrist_flex: 0
+
+  shoulder_rotation_sweep:
+    label: Shoulder rotation sweep
+    keyframes:
+      - name: rotate out
+        offsets_deg:
+          r_sh_rot: 12
+      - name: rotate in
+        offsets_deg:
+          r_sh_rot: -12
+      - name: shoulder rotation home
+        offsets_deg:
+          r_sh_rot: 0
+
+  combined_wrist_forearm_rotation:
+    label: Combined wrist + forearm rotation
+    keyframes:
+      - name: rotate together positive
+        offsets_deg:
+          r_farm_rot: 12
+          r_wrist_flex: 8
+      - name: rotate together negative
+        offsets_deg:
+          r_farm_rot: -12
+          r_wrist_flex: -8
+      - name: return near home
+        offsets_deg:
+          r_farm_rot: 0
+          r_wrist_flex: 0
+
+  combined_opposite_shoulder_elbow_flexion:
+    label: Combined opposite shoulder + elbow flexion
+    keyframes:
+      - name: flex elbow
+        offsets_deg:
+          r_elb_flex: 12
+      - name: flex shoulder and extend elbow
+        offsets_deg:
+          r_sh_flex: 12
+          r_elb_flex: -12
+      - name: return near home
+        offsets_deg:
+          r_sh_flex: 0
+          r_elb_flex: 0

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from harper_arm.joint import DEFAULT_CONFIG_PATH
 from harper_arm.status import MotorStatus
-from tui.suite_catalog import MOTOR_TEST_NAMES as ALL_TESTS
+from tui.catalog import MOTOR_TEST_NAMES as ALL_TESTS
 
 from . import (
     current_no_load,
@@ -16,8 +16,6 @@ from . import (
     power_on_response,
     present_temperature,
     present_voltage,
-    thermal_rise,
-    velocity_tracking,
 )
 from .helpers import DEFAULT_RESULTS_ROOT
 
@@ -30,8 +28,6 @@ MOTOR_TESTS: dict[str, RunFn] = {
     "current_no_load": current_no_load.run,
     "power_on_response": power_on_response.run,
     "position_accuracy": position_accuracy.run,
-    "velocity_tracking": velocity_tracking.run,
-    "thermal_rise": thermal_rise.run,
 }
 
 def run(

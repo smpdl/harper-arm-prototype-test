@@ -1,0 +1,763 @@
+/* One Dark palette */
+$black: #181a1f;
+$bg0: #282c34;
+$bg1: #31353f;
+$bg2: #393f4a;
+$bg3: #3b3f4c;
+$bg_d: #21252b;
+$fg: #abb2bf;
+$purple: #c678dd;
+$green: #98c379;
+$orange: #d19a66;
+$blue: #61afef;
+$yellow: #e5c07b;
+$cyan: #56b6c2;
+$red: #e86671;
+$grey: #5c6370;
+$light_grey: #848b98;
+
+/* Unified layout surfaces */
+$surface: $bg0;
+$surface_output: #2e333b;
+$btn: #363c46;
+$btn_hover: #3e4550;
+$btn_run_bg: #3a4a38;
+$btn_run_fg: #a3b899;
+$btn_stop_bg: #4a3a3a;
+$btn_stop_fg: #c4a0a0;
+$btn_disabled_bg: #2f343d;
+$btn_disabled_fg: #6b7280;
+
+App {
+    background: $surface;
+    color: $fg;
+}
+
+Screen {
+    layout: vertical;
+    background: $surface;
+    color: $fg;
+}
+
+Screen:focus {
+    background: $surface;
+}
+
+Header {
+    background: $surface;
+    color: $fg;
+    border: none;
+    dock: top;
+}
+
+Header:focus {
+    background: $surface;
+    border: none;
+}
+
+Footer {
+    background: $surface;
+    color: $grey;
+    border: none;
+    dock: bottom;
+}
+
+Footer:focus {
+    background: $surface;
+    border: none;
+}
+
+Footer > .footer--highlight {
+    background: $surface;
+    color: $fg;
+}
+
+Footer > .footer--highlight:focus {
+    background: $surface;
+    color: $fg;
+}
+
+#body {
+    height: 1fr;
+    layout: horizontal;
+    background: $surface;
+}
+
+#body:focus {
+    background: $surface;
+}
+
+#browser {
+    width: 24;
+    min-width: 22;
+    max-width: 26;
+    border: none;
+    background: $surface;
+    padding: 0;
+    overflow: hidden hidden;
+    background-tint: 0%;
+}
+
+#browser:focus {
+    background: $surface;
+    border: none;
+    background-tint: 0%;
+}
+
+#browser-title {
+    margin: 1 0;
+    text-style: bold;
+    color: $fg;
+    width: 100%;
+    text-align: center;
+    height: 1;
+    overflow: hidden;
+    background: $surface;
+}
+
+.browser-tree {
+    width: 100%;
+    overflow: hidden hidden;
+    scrollbar-size-horizontal: 0;
+    background: $surface;
+    background-tint: 0%;
+}
+
+.browser-tree:focus {
+    background: $surface;
+    background-tint: 0%;
+}
+
+Tree {
+    background: $surface;
+    color: $fg;
+    border: none;
+    padding: 0;
+    overflow: hidden hidden;
+    background-tint: 0%;
+}
+
+Tree:focus {
+    border: none;
+    background: $surface;
+    background-tint: 0%;
+}
+
+Tree > .tree--guides {
+    color: $grey;
+}
+
+Tree > .tree--guides-hover {
+    color: $grey;
+}
+
+Tree > .tree--guides-selected {
+    color: $grey;
+}
+
+Tree:focus > .tree--guides {
+    color: $grey;
+}
+
+Tree:focus > .tree--guides-hover {
+    color: $grey;
+}
+
+Tree:focus > .tree--guides-selected {
+    color: $grey;
+}
+
+Tree > .tree--label {
+    color: $light_grey;
+    background: transparent;
+}
+
+Tree > .tree--cursor {
+    background: $surface;
+    color: $green;
+    text-style: bold;
+}
+
+Tree:focus > .tree--cursor {
+    background: $surface;
+    color: $green;
+    text-style: bold;
+}
+
+Tree > .tree--highlight {
+    background: $surface;
+    color: $fg;
+    text-style: underline;
+}
+
+Tree:focus > .tree--highlight {
+    background: $surface;
+    color: $fg;
+    text-style: underline;
+}
+
+Tree > .tree--highlight-line {
+    background: $surface;
+}
+
+Tree:focus > .tree--highlight-line {
+    background: $surface;
+}
+
+#config-panel {
+    width: 1fr;
+    border: none;
+    background: $surface;
+    padding: 1 1;
+    layout: vertical;
+    overflow: hidden hidden;
+}
+
+#config-panel:focus {
+    background: $surface;
+    border: none;
+}
+
+#config-title {
+    text-style: bold;
+    margin-bottom: 1;
+    color: $fg;
+    height: auto;
+    width: 100%;
+    overflow: hidden;
+    background: $surface;
+}
+
+#config-scroll {
+    height: 1fr;
+    border: none;
+    background: $surface;
+    overflow: hidden auto;
+    scrollbar-visibility: hidden;
+}
+
+#config-scroll:focus {
+    background: $surface;
+    border: none;
+}
+
+VerticalScroll {
+    background: $surface;
+    background-tint: 0%;
+}
+
+VerticalScroll:focus {
+    background: $surface;
+    border: none;
+    background-tint: 0%;
+}
+
+Vertical {
+    background: $surface;
+}
+
+Vertical:focus {
+    background: $surface;
+}
+
+Horizontal {
+    background: transparent;
+}
+
+Horizontal:focus {
+    background: transparent;
+    border: none;
+}
+
+#config-fields {
+    height: auto;
+    width: 100%;
+    overflow: hidden;
+    background: $surface;
+}
+
+.field-row {
+    height: auto;
+    margin-bottom: 1;
+    background: transparent;
+}
+
+.field-label {
+    width: 14;
+    content-align: right middle;
+    margin-right: 1;
+    color: $light_grey;
+    background: transparent;
+}
+
+.field-control {
+    width: 1fr;
+}
+
+Input {
+    background: $btn;
+    color: $fg;
+    border: none;
+    padding: 0 1;
+}
+
+Input:focus {
+    background: $btn;
+    color: $fg;
+    border: none;
+}
+
+Select {
+    background: $btn;
+    color: $fg;
+    border: none;
+    padding: 0 1;
+}
+
+Select:focus {
+    background: $btn;
+    color: $fg;
+    border: none;
+}
+
+SelectCurrent {
+    background: $btn;
+    color: $fg;
+    border: none;
+}
+
+SelectCurrent:focus {
+    background: $btn;
+    color: $fg;
+    border: none;
+}
+
+SelectOverlay {
+    background: $btn;
+    color: $fg;
+    border: none;
+}
+
+Button {
+    background: $btn;
+    color: $fg;
+    border: none;
+    min-width: 0;
+    width: auto;
+    height: 1;
+    padding: 0 1;
+    margin: 0;
+}
+
+Button:hover {
+    background: $btn_hover;
+    color: $fg;
+    border: none;
+}
+
+Button:focus {
+    background: $btn;
+    color: $fg;
+    border: none;
+}
+
+Button:hover:focus {
+    background: $btn_hover;
+    color: $fg;
+    border: none;
+}
+
+Button.-disabled {
+    background: $btn_disabled_bg;
+    color: $btn_disabled_fg;
+    border: none;
+    opacity: 1;
+}
+
+.btn-black {
+    background: $btn;
+    color: $fg;
+    border: none;
+}
+
+.btn-black:hover {
+    background: $btn_hover;
+    color: $fg;
+    border: none;
+}
+
+.btn-black:focus {
+    background: $btn;
+    color: $fg;
+    border: none;
+}
+
+.btn-black:hover:focus {
+    background: $btn_hover;
+    color: $fg;
+    border: none;
+}
+
+.btn-black.-disabled {
+    background: $btn_disabled_bg;
+    color: $btn_disabled_fg;
+    border: none;
+}
+
+.btn-run {
+    background: $btn_run_bg;
+    color: $btn_run_fg;
+    border: none;
+    text-style: bold;
+}
+
+.btn-run:hover {
+    background: $btn_run_bg;
+    color: $btn_run_fg;
+    border: none;
+    text-style: bold;
+}
+
+.btn-run:focus {
+    background: $btn_run_bg;
+    color: $btn_run_fg;
+    border: none;
+    text-style: bold;
+}
+
+.btn-run.-disabled {
+    background: $btn_disabled_bg;
+    color: $btn_disabled_fg;
+    border: none;
+    text-style: none;
+}
+
+.btn-stop {
+    background: $btn_stop_bg;
+    color: $btn_stop_fg;
+    border: none;
+}
+
+.btn-stop:hover {
+    background: $btn_stop_bg;
+    color: $btn_stop_fg;
+    border: none;
+}
+
+.btn-stop:focus {
+    background: $btn_stop_bg;
+    color: $btn_stop_fg;
+    border: none;
+}
+
+#config-actions {
+    height: auto;
+    margin-top: 1;
+    align: left middle;
+    background: transparent;
+}
+
+#config-actions Button {
+    margin-right: 1;
+}
+
+.btn-row {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    layout: grid;
+    grid-size: 5;
+    grid-gutter: 1 0;
+    margin-bottom: 1;
+    overflow: hidden;
+    background: transparent;
+}
+
+.btn-row Button {
+    width: 1fr;
+    min-width: 0;
+}
+
+MotorStatusPanel {
+    width: 32;
+    min-width: 28;
+    border: none;
+    background: $surface;
+    padding: 1;
+}
+
+MotorStatusPanel:focus {
+    background: $surface;
+    border: none;
+}
+
+#monitor-title {
+    text-style: bold;
+    margin-bottom: 1;
+    color: $fg;
+    background: transparent;
+}
+
+#monitor-body {
+    height: 1fr;
+    color: $fg;
+    background: transparent;
+}
+
+.monitor-idle {
+    color: $grey;
+}
+
+#output-panel {
+    height: 12;
+    min-height: 8;
+    border: none;
+    background: $surface_output;
+    padding: 0 1;
+}
+
+#output-panel:focus {
+    background: $surface_output;
+    border: none;
+}
+
+#output-title {
+    margin: 1 0 0 0;
+    text-style: bold;
+    color: $fg;
+    background: transparent;
+}
+
+#output-log {
+    height: 1fr;
+    border: none;
+    padding: 0;
+    background: $surface_output;
+    color: $fg;
+}
+
+#output-log:focus {
+    background: $surface_output;
+    border: none;
+}
+
+RichLog {
+    background: $surface_output;
+    color: $fg;
+    border: none;
+    background-tint: 0%;
+}
+
+RichLog:focus {
+    background: $surface_output;
+    border: none;
+    background-tint: 0%;
+}
+
+#status-bar {
+    dock: bottom;
+    height: 1;
+    background: $surface;
+    color: $grey;
+    padding: 0 1;
+    border: none;
+}
+
+#status-bar:focus {
+    background: $surface;
+    border: none;
+}
+
+#calibration-section {
+    height: auto;
+    margin-top: 1;
+    padding-top: 0;
+    border: none;
+    width: 100%;
+    overflow: hidden;
+    background: transparent;
+}
+
+#calibration-recorded {
+    background: transparent;
+    color: $yellow;
+    padding: 0 1;
+    margin-top: 1;
+    height: auto;
+    width: 100%;
+    overflow: hidden;
+    text-style: bold;
+}
+
+#calibration-position {
+    margin-bottom: 1;
+    color: $cyan;
+    height: auto;
+    width: 100%;
+    overflow: hidden;
+    background: transparent;
+}
+
+#calibration-buttons {
+    height: auto;
+    background: transparent;
+}
+
+#calibration-jog {
+    height: auto;
+    margin-bottom: 1;
+    background: transparent;
+}
+
+#structural-section {
+    height: auto;
+    margin-top: 1;
+    padding-top: 0;
+    border: none;
+    background: transparent;
+}
+
+#structural-instruction {
+    margin-bottom: 1;
+    color: $fg;
+    height: auto;
+    background: transparent;
+}
+
+#structural-progress {
+    color: $cyan;
+    margin-bottom: 1;
+    height: auto;
+    background: transparent;
+}
+
+#structural-section Input {
+    margin-bottom: 1;
+}
+
+#e2e-section {
+    height: auto;
+    margin-top: 1;
+    padding-top: 0;
+    border: none;
+    background: transparent;
+}
+
+#e2e-instruction {
+    margin-bottom: 1;
+    color: $fg;
+    height: auto;
+    background: transparent;
+}
+
+#e2e-progress {
+    color: $cyan;
+    margin-bottom: 1;
+    height: auto;
+    background: transparent;
+}
+
+#e2e-preview {
+    height: auto;
+    border: none;
+    background: $surface;
+    padding: 0 1;
+    margin-bottom: 1;
+    color: $fg;
+}
+
+HomeScreen {
+    background: $surface;
+}
+
+#home-panel {
+    border: none;
+    background: $surface;
+    padding: 2 3;
+}
+
+#home-title {
+    color: $fg;
+    background: transparent;
+}
+
+#home-actions {
+    background: transparent;
+}
+
+#home-actions Button {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+SettingsScreen {
+    background: rgba(24, 26, 31, 0.7);
+}
+
+#settings-dialog {
+    border: none;
+    background: $surface;
+    color: $fg;
+}
+
+#settings-dialog:focus {
+    background: $surface;
+    border: none;
+}
+
+#settings-dialog Label {
+    color: $light_grey;
+    background: transparent;
+}
+
+#settings-dialog Input {
+    margin-bottom: 1;
+}
+
+#settings-actions {
+    height: auto;
+    margin-top: 1;
+    align: right middle;
+    background: transparent;
+}
+
+#settings-actions Button {
+    margin-left: 1;
+}
+
+Static {
+    background: transparent;
+}
+
+Static:focus {
+    background: transparent;
+    border: none;
+}
+
+Label {
+    background: transparent;
+}
+
+Label:focus {
+    background: transparent;
+    border: none;
+}
+
+Switch {
+    background: transparent;
+    border: none;
+}
+
+Switch:focus {
+    background: transparent;
+    border: none;
+}
+
+Container {
+    background: $surface;
+}
+
+Container:focus {
+    background: $surface;
+    border: none;
+}
