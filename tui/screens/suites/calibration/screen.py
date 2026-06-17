@@ -239,7 +239,7 @@ class CalibrationScreen(SuiteRunnerScreen):
         self._refresh_scheduled = True
         self._refresh_display()
 
-    @work(thread=True)
+    @work(thread=True, exclusive=True)
     def _refresh_display(self) -> None:
         try:
             if self._controller is None:
@@ -252,7 +252,11 @@ class CalibrationScreen(SuiteRunnerScreen):
             self._call_from_thread(self._update_motor_status, status)
             self._call_from_thread(self._update_recorded)
         except Exception as exc:
-            self._call_from_thread(self._write_log, f"[yellow]Refresh failed:[/] {exc}")
+            self._call_from_thread(
+                self._write_log,
+                f"[yellow]Refresh failed:[/] {exc}",
+            )
+            self._call_from_thread(self._write_log, traceback.format_exc())
         finally:
             self._refresh_scheduled = False
 

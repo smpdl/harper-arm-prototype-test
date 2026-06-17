@@ -17,26 +17,23 @@ def check_communication(joint: Joint) -> None:
         motor_id = joint.joint.id
         protocol = joint.joint.protocol
         handler = io.packet_handler[protocol - 1]
-        _model, comm_result, dxl_error = handler.ping(io.port_handler, motor_id)
+        try:
+            _model, comm_result, dxl_error = handler.ping(io.port_handler, motor_id)
+        except IndexError as exc:
+            raise CommunicationError("ping returned an incomplete response") from exc
         if comm_result != COMM_SUCCESS:
             raise CommunicationError(handler.getTxRxResult(comm_result))
         if dxl_error != 0:
             raise CommunicationError(handler.getRxPacketError(dxl_error))
 
-def record_position(
+def read_position(
     joint: Joint,
     *,
     abort_event: threading.Event | None = None,
 ) -> int:
-    """
-    Read present encoder ticks after verifying communication.
-
-    Used for both guided incremental and manual (backdrive) placement modes.
-    """
+    """Read present encoder ticks without a bus ping."""
     if abort_event is not None and abort_event.is_set():
         raise EmergencyStopError("emergency stop activated")
-
-    check_communication(joint)
 
     try:
         position = joint.get_position()
@@ -47,3 +44,21 @@ def record_position(
         raise EmergencyStopError("emergency stop activated")
 
     return position
+
+
+def record_position(
+    joint: Joint,
+    *,
+    abort_event: threading.Event | None = None,
+    verify_comm: bool = True,
+) -> int:
+    """
+    Read present encoder ticks, optionally after a bus ping.
+
+    Used for both guided incremental and manual (backdrive) placement modes.
+    Live display polling should pass ``verify_comm=False`` to avoid hammering
+    the bus with pings several times per second.
+    """
+    if verify_comm:
+        check_communication(joint)
+    return read_position(joint, abort_event=abort_event)

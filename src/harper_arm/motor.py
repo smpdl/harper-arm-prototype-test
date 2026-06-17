@@ -14,6 +14,7 @@ from harper_arm import units
 MOVE_TIMEOUT_S = 10.0
 POSITION_TOLERANCE_TICKS = 10
 SETTLE_POLL_INTERVAL_S = 0.02
+SETTLE_STABLE_POLLS = 3
 
 
 _MODELS = {
@@ -284,6 +285,7 @@ def move_to_ticks(
         measured_ticks = read_present_position(motor)
 
     deadline = time.monotonic() + timeout_s
+    stable_polls = 0
     while time.monotonic() < deadline:
         with bus_lock:
             measured_ticks = read_present_position(motor)
@@ -291,5 +293,10 @@ def move_to_ticks(
         if _within_position_tolerance(measured_ticks, target_ticks, tolerance_ticks):
             if moving is not True:
                 return True, measured_ticks
+            stable_polls += 1
+            if stable_polls >= SETTLE_STABLE_POLLS:
+                return True, measured_ticks
+        else:
+            stable_polls = 0
         time.sleep(SETTLE_POLL_INTERVAL_S)
     return False, measured_ticks

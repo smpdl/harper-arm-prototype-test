@@ -96,27 +96,28 @@ def read_motor_status(connected_joint: Joint) -> MotorStatus:
     motor = connected_joint.motor
     joint_cfg = connected_joint.joint
 
-    torque_raw = _safe_read_int(motor, "Torque_Enable")
-    moving_raw = _safe_read_int(motor, "Moving")
+    with connected_joint.bus_lock:
+        torque_raw = _safe_read_int(motor, "Torque_Enable")
+        moving_raw = _safe_read_int(motor, "Moving")
 
-    return MotorStatus(
-        timestamp=datetime.now(),
-        joint=connected_joint.joint_name,
-        motor_id=joint_cfg.id,
-        model=joint_cfg.model,
-        position=read_present_position(motor),
-        velocity=int(motor.read_control_table("Present_Velocity")),
-        current=int(motor.get_current()),
-        temperature=int(motor.read_control_table("Present_Temperature")),
-        voltage=int(motor.read_control_table("Present_Input_Voltage")),
-        goal_position=_safe_read_int_signed(motor, "Goal_Position"),
-        goal_velocity=_safe_read_int(motor, "Goal_Velocity"),
-        goal_current=_safe_read_int(motor, "Goal_Current"),
-        torque_enabled=None if torque_raw is None else bool(torque_raw),
-        moving=None if moving_raw is None else bool(moving_raw),
-        hardware_error=_safe_read_int(motor, "Hardware_Error_Status"),
-        operating_mode=_safe_read_int(motor, "Operating_Mode"),
-    )
+        return MotorStatus(
+            timestamp=datetime.now(),
+            joint=connected_joint.joint_name,
+            motor_id=joint_cfg.id,
+            model=joint_cfg.model,
+            position=read_present_position(motor),
+            velocity=int(motor.read_control_table("Present_Velocity")),
+            current=int(motor.get_current()),
+            temperature=int(motor.read_control_table("Present_Temperature")),
+            voltage=int(motor.read_control_table("Present_Input_Voltage")),
+            goal_position=_safe_read_int_signed(motor, "Goal_Position"),
+            goal_velocity=_safe_read_int(motor, "Goal_Velocity"),
+            goal_current=_safe_read_int(motor, "Goal_Current"),
+            torque_enabled=None if torque_raw is None else bool(torque_raw),
+            moving=None if moving_raw is None else bool(moving_raw),
+            hardware_error=_safe_read_int(motor, "Hardware_Error_Status"),
+            operating_mode=_safe_read_int(motor, "Operating_Mode"),
+        )
 
 def format_hardware_error(code: int | None) -> str:
     if code is None:

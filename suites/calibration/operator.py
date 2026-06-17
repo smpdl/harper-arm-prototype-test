@@ -121,7 +121,11 @@ class CalibrationOperator:
 
     def refresh_position(self) -> int:
         self._check_abort()
-        return record_position(self.connected_joint, abort_event=self._abort_event)
+        return record_position(
+            self.connected_joint,
+            abort_event=self._abort_event,
+            verify_comm=False,
+        )
 
     def record_min(self) -> int:
         ticks = self.refresh_position()
