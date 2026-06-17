@@ -42,7 +42,7 @@ class CalibrationScreen(SuiteRunnerScreen):
 
     def on_mount(self) -> None:
         super().on_mount()
-        self.set_interval(0.5, self._poll_display)
+        self.set_interval(0.15, self._poll_display)
         self.set_timer(0, self._select_default_test)
 
     async def _select_default_test(self) -> None:

@@ -18,6 +18,7 @@ from harper_arm.config import (
     resolve_position_profile_acceleration_rpm2,
     resolve_position_profile_velocity_rpm,
 )
+from harper_arm import units
 from harper_arm.joint import DEFAULT_CONFIG_PATH, Joint
 from harper_arm.logging import TestRun
 from harper_arm.motor import POSITION_TOLERANCE_TICKS, move_to_ticks
@@ -27,7 +28,7 @@ from tui.catalog import MOTOR_MOTION_TESTS, MOTOR_POSITION_TESTS, MOTOR_WHOLE_AR
 
 DEFAULT_BASE_POSE = "home"
 DEFAULT_RESULTS_ROOT = Path("results")
-STATUS_POLL_INTERVAL_S = 0.25
+STATUS_POLL_INTERVAL_S = 0.1
 # Quick single-shot reads; live polling would race on the serial port.
 _TESTS_WITHOUT_LIVE_STATUS = frozenset(
     {"ping", "present_voltage", "present_temperature", "current_no_load"}
@@ -76,7 +77,8 @@ def at_base_position(
 ) -> bool:
     samples = arm.sample()
     return all(
-        abs(samples[joint_name].position - target_ticks) <= tolerance_ticks
+        abs(units.position_error_ticks(samples[joint_name].position, target_ticks))
+        <= tolerance_ticks
         for joint_name, target_ticks in pose.items()
     )
 

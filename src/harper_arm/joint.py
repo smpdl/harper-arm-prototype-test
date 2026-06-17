@@ -9,6 +9,7 @@ from typing import Any
 from dynio import DynamixelIO, DynamixelMotor
 
 from harper_arm import units
+from harper_arm.motor import read_present_position
 from harper_arm.config import ArmConfig, JointConfig, clamp_to_position_limits, load_arm_config
 from harper_arm.motor import connect_io, disconnect_io, new_motor
 
@@ -157,7 +158,7 @@ class Joint:
 
     def get_position(self) -> int:
         with self.bus_lock:
-            return int(self.motor.get_position())
+            return read_present_position(self.motor)
 
     def set_velocity(self, velocity: int) -> None:
         with self.bus_lock:

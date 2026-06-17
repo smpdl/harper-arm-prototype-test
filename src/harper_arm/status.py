@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from dynio import DynamixelMotor
 
 from harper_arm import units
+from harper_arm.motor import read_present_position
 
 if TYPE_CHECKING:
     from harper_arm.joint import Joint
@@ -81,6 +82,15 @@ def _safe_read_int(motor: DynamixelMotor, register: str) -> int | None:
         return None
 
 
+def _safe_read_int_signed(motor: DynamixelMotor, register: str) -> int | None:
+    value = _safe_read_int(motor, register)
+    if value is None:
+        return None
+    if register in {"Present_Position", "Goal_Position"}:
+        return units.decode_position_ticks(value)
+    return value
+
+
 def read_motor_status(connected_joint: Joint) -> MotorStatus:
     """Read present and goal registers from a connected joint."""
     motor = connected_joint.motor
@@ -94,12 +104,12 @@ def read_motor_status(connected_joint: Joint) -> MotorStatus:
         joint=connected_joint.joint_name,
         motor_id=joint_cfg.id,
         model=joint_cfg.model,
-        position=int(motor.get_position()),
+        position=read_present_position(motor),
         velocity=int(motor.read_control_table("Present_Velocity")),
         current=int(motor.get_current()),
         temperature=int(motor.read_control_table("Present_Temperature")),
         voltage=int(motor.read_control_table("Present_Input_Voltage")),
-        goal_position=_safe_read_int(motor, "Goal_Position"),
+        goal_position=_safe_read_int_signed(motor, "Goal_Position"),
         goal_velocity=_safe_read_int(motor, "Goal_Velocity"),
         goal_current=_safe_read_int(motor, "Goal_Current"),
         torque_enabled=None if torque_raw is None else bool(torque_raw),

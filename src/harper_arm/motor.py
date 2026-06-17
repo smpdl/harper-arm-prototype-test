@@ -9,8 +9,11 @@ from collections.abc import Mapping
 from dynio import DynamixelIO, DynamixelMotor
 from dynio.group_io import resolve_sync_register
 
+from harper_arm import units
+
 MOVE_TIMEOUT_S = 10.0
 POSITION_TOLERANCE_TICKS = 10
+SETTLE_POLL_INTERVAL_S = 0.02
 
 
 _MODELS = {
@@ -58,11 +61,12 @@ def disconnect_io(io: DynamixelIO | None) -> None:
 
 def _motor_bus(bus: object, joint_name: str | None) -> tuple[threading.Lock, DynamixelMotor]:
     bus_lock: threading.Lock = bus.bus_lock  # type: ignore[attr-defined]
-    if joint_name is None:
-        motor: DynamixelMotor = bus.motor  # type: ignore[attr-defined]
-    else:
-        motor = bus.motors[joint_name]  # type: ignore[attr-defined]
-    return bus_lock, motor
+    motors = getattr(bus, "motors", None)
+    if motors is not None:
+        if joint_name is None:
+            raise ValueError("joint_name is required when bus exposes multiple motors")
+        return bus_lock, motors[joint_name]
+    return bus_lock, bus.motor  # type: ignore[attr-defined]
 
 
 def _selected_motors(
@@ -80,6 +84,29 @@ def _selected_motors(
 
 def _motor_ids_by_joint(selected: Mapping[str, DynamixelMotor]) -> dict[int, str]:
     return {motor.dxl_id: joint_name for joint_name, motor in selected.items()}
+
+
+def read_present_position(motor: DynamixelMotor) -> int:
+    """Read Present_Position with signed 32-bit decoding."""
+    return units.decode_position_ticks(int(motor.read_control_table("Present_Position")))
+
+
+def _motor_moving(motor: DynamixelMotor) -> bool | None:
+    table = getattr(motor, "CONTROL_TABLE", None)
+    if table is not None and "Moving" not in table:
+        return None
+    try:
+        return bool(int(motor.read_control_table("Moving")))
+    except Exception:
+        return None
+
+
+def _within_position_tolerance(
+    measured_ticks: int,
+    target_ticks: int,
+    tolerance_ticks: int,
+) -> bool:
+    return abs(units.position_error_ticks(measured_ticks, target_ticks)) <= tolerance_ticks
 
 
 def _can_sync_register(motors: list[DynamixelMotor], register_name: str) -> bool:
@@ -166,7 +193,10 @@ def read_positions(
             specs = [(selected[name], "Present_Position") for name in names]
             raw = io.bulk_read(specs)
 
-    return {id_to_joint[dxl_id]: int(value) for dxl_id, value in raw.items()}
+    return {
+        id_to_joint[dxl_id]: units.decode_position_ticks(int(value))
+        for dxl_id, value in raw.items()
+    }
 
 
 def move_positions_to_ticks(
@@ -186,28 +216,54 @@ def move_positions_to_ticks(
     deadline = time.monotonic() + timeout_s
     measured: dict[str, int] = {}
     while time.monotonic() < deadline:
+        settled = True
         measured = {}
         for joint_name in joint_names:
             bus_lock, motor = _motor_bus(bus, joint_name)
             with bus_lock:
-                measured[joint_name] = int(motor.get_position())
-        if all(
-            abs(measured[joint_name] - target_ticks) <= tolerance_ticks
-            for joint_name, target_ticks in positions.items()
-        ):
+                measured[joint_name] = read_present_position(motor)
+                moving = _motor_moving(motor)
+            target_ticks = positions[joint_name]
+            if not _within_position_tolerance(
+                measured[joint_name], target_ticks, tolerance_ticks
+            ):
+                settled = False
+            elif moving:
+                settled = False
+        if settled:
             return {
                 joint_name: (True, measured[joint_name]) for joint_name in positions
             }
-        time.sleep(0.05)
+        time.sleep(SETTLE_POLL_INTERVAL_S)
 
     return {
         joint_name: (
-            abs(measured.get(joint_name, positions[joint_name]) - positions[joint_name])
-            <= tolerance_ticks,
+            _position_settled(
+                bus,
+                joint_name,
+                measured.get(joint_name, positions[joint_name]),
+                positions[joint_name],
+                tolerance_ticks,
+            ),
             measured.get(joint_name, positions[joint_name]),
         )
         for joint_name in positions
     }
+
+
+def _position_settled(
+    bus: object,
+    joint_name: str,
+    measured_ticks: int,
+    target_ticks: int,
+    tolerance_ticks: int,
+) -> bool:
+    if not _within_position_tolerance(measured_ticks, target_ticks, tolerance_ticks):
+        return False
+    bus_lock, motor = _motor_bus(bus, joint_name)
+    with bus_lock:
+        moving = _motor_moving(motor)
+    return moving is not True
 
 def move_to_ticks(
     bus: object,
@@ -225,13 +281,15 @@ def move_to_ticks(
     bus_lock, motor = _motor_bus(bus, joint_name)
     with bus_lock:
         motor.set_position(target_ticks)
-        measured_ticks = int(motor.get_position())
+        measured_ticks = read_present_position(motor)
 
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         with bus_lock:
-            measured_ticks = int(motor.get_position())
-        if abs(measured_ticks - target_ticks) <= tolerance_ticks:
-            return True, measured_ticks
-        time.sleep(0.05)
+            measured_ticks = read_present_position(motor)
+            moving = _motor_moving(motor)
+        if _within_position_tolerance(measured_ticks, target_ticks, tolerance_ticks):
+            if moving is not True:
+                return True, measured_ticks
+        time.sleep(SETTLE_POLL_INTERVAL_S)
     return False, measured_ticks

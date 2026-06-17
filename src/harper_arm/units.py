@@ -83,6 +83,37 @@ def thermal_sample_current_ma(
     return current_to_ma(current, model=model)
 
 
+def decode_position_ticks(raw: int) -> int:
+    """Convert a Dynamixel Present/Goal_Position read to signed encoder ticks.
+
+    The Dynamixel SDK returns 4-byte registers as unsigned integers, but
+    Present_Position is a signed 32-bit value. Extended-position joints can
+    report negative ticks; without this step they appear as values near 2^32.
+    """
+    value = int(raw) & 0xFFFFFFFF
+    if value >= 0x80000000:
+        return value - 0x100000000
+    return value
+
+
+def position_error_ticks(measured_ticks: int, reference_ticks: int) -> int:
+    """Signed tick error (measured minus reference).
+
+    Uses the shortest path on the 4096-tick ring when both values lie in the
+    single-turn range; otherwise uses linear signed error (extended position).
+    """
+    measured = decode_position_ticks(measured_ticks)
+    reference = decode_position_ticks(reference_ticks)
+    delta = measured - reference
+    if 0 <= measured <= TICKS_PER_REV - 1 and 0 <= reference <= TICKS_PER_REV - 1:
+        half = TICKS_PER_REV // 2
+        if delta > half:
+            delta -= TICKS_PER_REV
+        elif delta < -half:
+            delta += TICKS_PER_REV
+    return delta
+
+
 def position_error_deg(measured_ticks: int, reference_ticks: int) -> float:
     """Signed position error in degrees (measured minus reference)."""
-    return ticks_to_degrees(measured_ticks - reference_ticks)
+    return ticks_to_degrees(position_error_ticks(measured_ticks, reference_ticks))
