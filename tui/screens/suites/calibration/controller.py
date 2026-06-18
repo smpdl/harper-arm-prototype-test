@@ -109,6 +109,11 @@ class CalibrationSessionController:
         with self._operator_lock:
             return operator.jog(jog_command)
 
+    def move_to(self, ticks: int) -> tuple[bool, int]:
+        operator = self._require_operator()
+        with self._operator_lock:
+            return operator.move_to(ticks)
+
     def save(self) -> Path:
         operator = self._require_operator()
         with self._operator_lock:

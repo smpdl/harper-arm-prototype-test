@@ -8,7 +8,7 @@ from typing import ClassVar, cast
 from textual import on, work
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, Select, Static, Tree
+from textual.widgets import Button, Input, Select, Static, Tree
 
 from harper_arm.calibration.config import (
     DEFAULT_CALIBRATION_PATH,
@@ -91,6 +91,24 @@ class CalibrationScreen(SuiteRunnerScreen):
                             disabled=True,
                         )
                     )
+            goto_row = Horizontal(classes="btn-row goto-row")
+            await jog_container.mount(goto_row)
+            await goto_row.mount(
+                Input(
+                    placeholder="Go to ticks",
+                    id="calibration-goto-ticks",
+                    type="integer",
+                    disabled=True,
+                )
+            )
+            await goto_row.mount(
+                Button(
+                    "Go",
+                    id="calibration-goto",
+                    classes="calibration-btn btn-black",
+                    disabled=True,
+                )
+            )
 
         record_row = Horizontal(id="calibration-record-row", classes="btn-row")
         await buttons.mount(record_row)
@@ -159,6 +177,23 @@ class CalibrationScreen(SuiteRunnerScreen):
             return
         for button in section.query(".calibration-btn"):
             button.disabled = not enabled
+        goto_inputs = section.query("#calibration-goto-ticks")
+        if goto_inputs:
+            goto_inputs.first().disabled = not enabled
+
+    def _parse_goto_ticks(self) -> int | None:
+        section = self._calibration_section()
+        if section is None:
+            return None
+        raw = section.query_one("#calibration-goto-ticks", Input).value.strip()
+        if not raw:
+            return None
+        if raw.startswith("="):
+            raw = raw[1:].strip()
+        try:
+            return int(raw)
+        except ValueError:
+            return None
 
     def _set_calibration_position(self, message: str) -> None:
         section = self._calibration_section()
@@ -267,7 +302,7 @@ class CalibrationScreen(SuiteRunnerScreen):
             self._refresh_scheduled = False
 
     @work(thread=True, exclusive=True)
-    def _run_action(self, action: str, *, jog_command: str | None = None) -> None:
+    def _run_action(self, action: str, *, jog_command: str | None = None, goto_ticks: int | None = None) -> None:
         if not self._session_ready or self._controller is None or self._action_busy:
             return
         self._action_busy = True
@@ -287,6 +322,13 @@ class CalibrationScreen(SuiteRunnerScreen):
                 self._call_from_thread(
                     self._write_log,
                     f"Jog {jog_command} → {measured} ticks{note}",
+                )
+            elif action == "move_to" and goto_ticks is not None:
+                reached, measured = self._controller.move_to(goto_ticks)
+                note = "" if reached else " (did not settle)"
+                self._call_from_thread(
+                    self._write_log,
+                    f"Move to {goto_ticks} → {measured} ticks{note}",
                 )
             elif action == "save":
                 run_dir = self._controller.save()
@@ -343,3 +385,16 @@ class CalibrationScreen(SuiteRunnerScreen):
         label = str(event.button.label)
         self._set_status(f"Jogging {label}…")
         self._run_action("jog", jog_command=label)
+
+    @on(Button.Pressed, "#calibration-goto")
+    def on_goto_pressed(self) -> None:
+        ticks = self._parse_goto_ticks()
+        if ticks is None:
+            self._set_status("Enter a tick position first.")
+            return
+        self._set_status(f"Moving to {ticks} ticks…")
+        self._run_action("move_to", goto_ticks=ticks)
+
+    @on(Input.Submitted, "#calibration-goto-ticks")
+    def on_goto_submitted(self) -> None:
+        self.on_goto_pressed()

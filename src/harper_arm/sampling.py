@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from harper_arm import units
+from harper_arm.motor import read_present_position
 
 if TYPE_CHECKING:
     from dynio import DynamixelMotor
@@ -37,7 +37,7 @@ def _read_joint_sample_from_motor(motor: DynamixelMotor, *, joint: str) -> Joint
     return JointSample(
         timestamp=datetime.now(UTC),
         joint=joint,
-        position=units.decode_position_ticks(int(motor.read_control_table("Present_Position"))),
+        position=read_present_position(motor),
         velocity=int(motor.read_control_table("Present_Velocity")),
         current=int(motor.get_current()),
         temperature=int(motor.read_control_table("Present_Temperature")),

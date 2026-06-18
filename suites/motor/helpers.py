@@ -72,18 +72,38 @@ def load_base_pose_ticks(
     return resolve_home_pose(arm_config)
 
 
+def _position_tolerance_failures(
+    arm: FullArm,
+    pose: Mapping[str, int],
+    *,
+    tolerance_ticks: int = POSITION_TOLERANCE_TICKS,
+) -> list[str]:
+    """Return human-readable per-joint errors when pose targets are not met."""
+    samples = arm.sample()
+    failures: list[str] = []
+    for joint_name, target_ticks in pose.items():
+        joint_cfg = arm.config.joints[joint_name]
+        measured_ticks = samples[joint_name].position
+        error_ticks = units.position_error_ticks(
+            measured_ticks,
+            target_ticks,
+            extended_position=units.joint_uses_extended_position(joint_cfg.position_limits),
+        )
+        if abs(error_ticks) > tolerance_ticks:
+            failures.append(
+                f"{joint_name}: measured={measured_ticks} target={target_ticks} "
+                f"error={error_ticks} ticks (tolerance={tolerance_ticks})"
+            )
+    return failures
+
+
 def at_base_position(
     arm: FullArm,
     pose: Mapping[str, int],
     *,
     tolerance_ticks: int = POSITION_TOLERANCE_TICKS,
 ) -> bool:
-    samples = arm.sample()
-    return all(
-        abs(units.position_error_ticks(samples[joint_name].position, target_ticks))
-        <= tolerance_ticks
-        for joint_name, target_ticks in pose.items()
-    )
+    return not _position_tolerance_failures(arm, pose, tolerance_ticks=tolerance_ticks)
 
 
 def move_arm_to_pose(
@@ -91,12 +111,18 @@ def move_arm_to_pose(
     pose: Mapping[str, int],
     *,
     config_path: Path | str = DEFAULT_CONFIG_PATH,
+    joint_under_test: str | None = None,
 ) -> dict[str, tuple[bool, int]]:
     arm_config = load_arm_config(config_path)
     home = resolve_home_pose(arm_config)
     if dict(pose) != home:
         raise ValueError("only the calibrated home pose is supported for whole-arm moves")
-    return move_arm_to_home_sequential(arm, config_path=config_path, prepare_bus=False)[0]
+    return move_arm_to_home_sequential(
+        arm,
+        config_path=config_path,
+        prepare_bus=False,
+        joint_under_test=joint_under_test,
+    )[0]
 
 
 def ensure_base_position(
@@ -104,14 +130,19 @@ def ensure_base_position(
     *,
     config_path: Path | str = DEFAULT_CONFIG_PATH,
     pose_name: str = DEFAULT_BASE_POSE,
+    joint_under_test: str | None = None,
 ) -> None:
     """Verify the arm is at base pose, moving there first when needed."""
     pose = load_base_pose_ticks(pose_name, config_path=config_path)
     if at_base_position(arm, pose):
         return
-    results = move_arm_to_pose(arm, pose)
-    if not all(reached for reached, _ in results.values()):
-        raise RuntimeError("failed to reach base position before motion test")
+    move_arm_to_pose(arm, pose, config_path=config_path, joint_under_test=joint_under_test)
+    failures = _position_tolerance_failures(arm, pose)
+    if failures:
+        details = "; ".join(failures)
+        raise RuntimeError(
+            f"failed to reach base position before motion test: {details}"
+        )
 
 
 def return_to_base_position(
@@ -119,15 +150,20 @@ def return_to_base_position(
     *,
     config_path: Path | str = DEFAULT_CONFIG_PATH,
     pose_name: str = DEFAULT_BASE_POSE,
+    joint_under_test: str | None = None,
 ) -> None:
     """Reconfigure position mode and move every joint back to base pose."""
     arm.configure_position_mode()
     arm.apply_position_profile_velocities()
     arm.torque_enable_all()
     pose = load_base_pose_ticks(pose_name, config_path=config_path)
-    results = move_arm_to_pose(arm, pose)
-    if not all(reached for reached, _ in results.values()):
-        raise RuntimeError("failed to return to base position after motion test")
+    move_arm_to_pose(arm, pose, config_path=config_path, joint_under_test=joint_under_test)
+    failures = _position_tolerance_failures(arm, pose)
+    if failures:
+        details = "; ".join(failures)
+        raise RuntimeError(
+            f"failed to return to base position after motion test: {details}"
+        )
 
 
 RowFields = Callable[[JointSample, Joint], dict[str, object]]

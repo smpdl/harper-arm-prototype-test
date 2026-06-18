@@ -142,7 +142,15 @@ def validate_joint(
                     message=str(exc),
                 )
 
-            error_deg = abs(units.position_error_deg(measured, target))
+            error_deg = abs(
+                units.position_error_deg(
+                    measured,
+                    target,
+                    extended_position=units.joint_uses_extended_position(
+                        joint.joint.position_limits
+                    ),
+                )
+            )
             fraction_results.append(
                 FractionResult(
                     fraction=fraction,

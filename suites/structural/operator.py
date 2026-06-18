@@ -18,7 +18,7 @@ from suites.e2e.config import DEFAULT_E2E_CONFIG_PATH
 from .helpers import (
     DEFAULT_HOME_NAME,
     DEFAULT_RESULTS_ROOT,
-    LINK_JOINTS,
+    link_joints_for_arm,
     load_motion_config,
     make_safety_monitor,
     max_flex_deg,
@@ -67,6 +67,7 @@ class PointLoadOperator:
         self._monitor: SafetyMonitor | None = None
         self._reference: dict[str, int] = {}
         self._link_queue: list[tuple[str, tuple[str, ...]]] = []
+        self._active_links: dict[str, tuple[str, ...]] = {}
         self._current_link: tuple[str, tuple[str, ...]] | None = None
         self._phase: PointLoadPhase = "complete"
         self._links_tested = 0
@@ -174,7 +175,7 @@ class PointLoadOperator:
 
     @property
     def progress_text(self) -> str:
-        total = len(LINK_JOINTS)
+        total = len(self._active_links)
         return f"Links tested: {self._links_tested} / {total}"
 
     def confirm_approach(self) -> None:
@@ -222,7 +223,8 @@ class PointLoadOperator:
             abort_event=self._abort_event,
         )
         self._reference = {name: sample.position for name, sample in baseline.items()}
-        self._link_queue = list(LINK_JOINTS.items())
+        self._active_links = link_joints_for_arm(load_arm_config(self.config_path))
+        self._link_queue = list(self._active_links.items())
         self._start_next_link()
 
     def mark_ready(self) -> None:

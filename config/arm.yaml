@@ -88,53 +88,54 @@ joints:
     direction: 1
     position_profile_acceleration_rpm2: 1000
     current_limit: 1400
-  r_fin_thumb:
-    id: 7
-    model: xc330-m288-t
-    protocol: 2
-    position_limits: [2500, 5500]
-    home_position: null
-    calibrated: false
-    direction: 1
-    position_profile_acceleration_rpm2: 1000
-    current_limit: 2150
-  r_fin_index:
-    id: 8
-    model: xc330-m288-t
-    protocol: 2
-    position_limits: [-500, 3200]
-    home_position: null
-    calibrated: false
-    direction: 1
-    position_profile_acceleration_rpm2: 1000
-    current_limit: 2150
-  r_fin_middle:
-    id: 9
-    model: xc330-m288-t
-    protocol: 2
-    position_limits: [-2000, 1900]
-    home_position: null
-    calibrated: false
-    direction: 1
-    position_profile_acceleration_rpm2: 1000
-    current_limit: 2150
-  r_fin_ring:
-    id: 10
-    model: xc330-m288-t
-    protocol: 2
-    position_limits: [1500, 5500]
-    home_position: null
-    calibrated: false
-    direction: 1
-    position_profile_acceleration_rpm2: 1000
-    current_limit: 2150
-  r_fin_pinky:
-    id: 11
-    model: xc330-m288-t
-    protocol: 2
-    position_limits: [3000, 6000]
-    home_position: null
-    calibrated: false
-    direction: 1
-    position_profile_acceleration_rpm2: 1000
-    current_limit: 2150
+  # Finger joints — uncomment when hardware is installed and ready to test.
+  # r_fin_thumb:
+  #   id: 7
+  #   model: xc330-m288-t
+  #   protocol: 2
+  #   position_limits: [2500, 5500]
+  #   home_position: null
+  #   calibrated: false
+  #   direction: 1
+  #   position_profile_acceleration_rpm2: 1000
+  #   current_limit: 2150
+  # r_fin_index:
+  #   id: 8
+  #   model: xc330-m288-t
+  #   protocol: 2
+  #   position_limits: [-500, 3200]
+  #   home_position: null
+  #   calibrated: false
+  #   direction: 1
+  #   position_profile_acceleration_rpm2: 1000
+  #   current_limit: 2150
+  # r_fin_middle:
+  #   id: 9
+  #   model: xc330-m288-t
+  #   protocol: 2
+  #   position_limits: [-2000, 1900]
+  #   home_position: null
+  #   calibrated: false
+  #   direction: 1
+  #   position_profile_acceleration_rpm2: 1000
+  #   current_limit: 2150
+  # r_fin_ring:
+  #   id: 10
+  #   model: xc330-m288-t
+  #   protocol: 2
+  #   position_limits: [1500, 5500]
+  #   home_position: null
+  #   calibrated: false
+  #   direction: 1
+  #   position_profile_acceleration_rpm2: 1000
+  #   current_limit: 2150
+  # r_fin_pinky:
+  #   id: 11
+  #   model: xc330-m288-t
+  #   protocol: 2
+  #   position_limits: [3000, 6000]
+  #   home_position: null
+  #   calibrated: false
+  #   direction: 1
+  #   position_profile_acceleration_rpm2: 1000
+  #   current_limit: 2150

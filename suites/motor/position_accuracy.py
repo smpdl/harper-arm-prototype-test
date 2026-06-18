@@ -73,7 +73,13 @@ def run(
                 goal_ticks = _target_ticks_for_angle(connected_joint.joint, target_deg)
                 reached, measured_ticks = move_to_ticks(connected_joint, goal_ticks)
                 reached_all = reached_all and reached
-                error_deg = units.position_error_deg(measured_ticks, goal_ticks)
+                error_deg = units.position_error_deg(
+                    measured_ticks,
+                    goal_ticks,
+                    extended_position=units.joint_uses_extended_position(
+                        connected_joint.joint.position_limits
+                    ),
+                )
                 measured_deg = target_deg + error_deg
                 errors.append(abs(error_deg))
                 recorder.write_row(

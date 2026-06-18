@@ -22,6 +22,7 @@ from harper_arm.calibration.record import record_position
 from harper_arm.calibration.session import CalibrationSession, JointCalibration
 from harper_arm.joint import DEFAULT_CONFIG_PATH, Joint
 from harper_arm.logging import TestRun
+from harper_arm.motor import move_to_ticks
 
 from .helpers import DEFAULT_RESULTS_ROOT, calibration_test_run, utc_now
 
@@ -171,6 +172,33 @@ class CalibrationOperator:
         )
         return reached, measured
 
+    def move_to(self, ticks: int) -> tuple[bool, int]:
+        if self.backdriveable:
+            raise ValueError("move_to is only available for non-backdriveable calibration")
+        self._check_abort()
+        target = self.calibration.clamp_target(ticks)
+        current = self.refresh_position()
+        if target == current:
+            reached, measured = True, current
+        else:
+            reached, measured = move_to_ticks(
+                self.connected_joint,
+                target,
+                joint_name=self.connected_joint.joint_name,
+            )
+        assert self._recorder is not None
+        self._recorder.write_row(
+            {
+                "timestamp_utc": utc_now().isoformat(),
+                "joint": self.joint_name,
+                "action": "move_to",
+                "position_ticks": measured,
+                "delta_deg": "",
+                "reached": reached,
+            }
+        )
+        return reached, measured
+
     def save(self) -> bool:
         if not self.calibration.is_complete():
             raise CalibrationError("record MIN, HOME, and MAX before saving")
@@ -208,6 +236,12 @@ class CalibrationOperator:
                 if not reached:
                     print(f"Jog did not settle within tolerance (at {measured} ticks).")
                 return "continue"
+            tick_raw = command[1:] if command.startswith("=") else command
+            if tick_raw.lstrip("-").isdigit() and tick_raw not in {"", "+", "-"}:
+                reached, measured = self.move_to(int(tick_raw))
+                if not reached:
+                    print(f"Move did not settle within tolerance (at {measured} ticks).")
+                return "continue"
         raise ValueError(f"unknown command: {command!r}")
 
     def _log_action(self, action: str, ticks: int) -> None:
@@ -242,7 +276,7 @@ def format_status_prompt(operator: CalibrationOperator, position: int) -> str:
         f"\nJoint: {operator.joint_name}\n"
         f"Position: {position} ticks\n"
         "\n"
-        f"{jog_labels}  jog\n"
+        f"{jog_labels}  jog   or enter a tick position (e.g. 2048)\n"
         "[m] Record MIN   [h] Record HOME   [x] Record MAX\n"
         "[s] Save & exit   [q] Quit without saving\n"
         "> "

@@ -81,7 +81,7 @@ def validate_target_in_limits(joint: JointConfig, target_ticks: int) -> None:
     if not target_within_position_limits(joint.position_limits, target_ticks):
         raise ValueError(
             f"joint {joint.name!r} target {target_ticks} is outside position_limits "
-            f"[min={min_tick}, max={max_tick}]"
+            f"(min={min_tick}, max={max_tick})"
         )
 
 def resolve_keyframe(

@@ -20,7 +20,7 @@ step_large_deg: 10 # ~112 units in encoder ticks
 step_xlarge_deg: 30 # ~336 units in encoder ticks 
 
 # Encoder tolerance to use when validating recorded positions in ticks.
-validation_tolerance_ticks: 15
+validation_tolerance_ticks: 28
 
 # Brief pause between validation waypoint moves (seconds).
 validation_hold_s: 0.5

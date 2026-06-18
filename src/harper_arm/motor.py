@@ -6,13 +6,14 @@ import threading
 import time
 from collections.abc import Mapping
 
+from dynamixel_sdk import COMM_SUCCESS, GroupBulkRead
 from dynio import DynamixelIO, DynamixelMotor
-from dynio.group_io import resolve_sync_register
+from dynio.group_io import parse_bulk_read_specs, resolve_sync_register
 
 from harper_arm import units
 
 MOVE_TIMEOUT_S = 10.0
-POSITION_TOLERANCE_TICKS = 10
+POSITION_TOLERANCE_TICKS = 28
 SETTLE_POLL_INTERVAL_S = 0.01
 SETTLE_STABLE_POLLS = 2
 
@@ -130,6 +131,81 @@ def read_present_position(motor: DynamixelMotor) -> int:
     return units.decode_position_ticks(raw)
 
 
+def _read_registers_sequential(
+    motor: DynamixelMotor,
+    register_names: tuple[str, ...],
+    table: Mapping[str, object],
+) -> dict[str, int | None]:
+    """Read registers one at a time (GroupBulkRead allows one range per motor ID)."""
+    return {
+        name: read_control_table_safe(motor, name) if name in table else None
+        for name in register_names
+    }
+
+
+def read_registers_bulk(
+    io: DynamixelIO,
+    motor: DynamixelMotor,
+    register_names: tuple[str, ...],
+) -> dict[str, int | None]:
+    """Read multiple registers from one motor in as few bus transactions as practical."""
+    table = getattr(motor, "CONTROL_TABLE", None)
+    if table is None:
+        return dict.fromkeys(register_names, None)
+
+    specs: list[tuple[DynamixelMotor, str]] = []
+    names: list[str] = []
+    for name in register_names:
+        if name in table:
+            specs.append((motor, name))
+            names.append(name)
+
+    if not specs:
+        return dict.fromkeys(register_names, None)
+
+    # Dynamixel GroupBulkRead only supports one address range per motor ID.
+    if len(specs) > 1:
+        return _read_registers_sequential(motor, register_names, table)
+
+    for attempt in range(BUS_READ_RETRIES):
+        try:
+            read_values = _read_registers_bulk_once(io, motor, names, specs)
+            return {name: read_values.get(name) for name in register_names}
+        except IndexError:
+            if attempt + 1 < BUS_READ_RETRIES:
+                time.sleep(BUS_READ_RETRY_DELAY_S)
+        except Exception:
+            break
+    return dict.fromkeys(register_names, None)
+
+
+def _read_registers_bulk_once(
+    io: DynamixelIO,
+    motor: DynamixelMotor,
+    names: list[str],
+    specs: list[tuple[DynamixelMotor, str]],
+) -> dict[str, int]:
+    parsed = parse_bulk_read_specs(specs)
+    protocol = parsed[0][0].PROTOCOL
+    handler = io.packet_handler[protocol - 1]
+    group = GroupBulkRead(io.port_handler, handler)
+
+    read_targets: list[tuple[str, int, int]] = []
+    for name, (selected_motor, address, size) in zip(names, parsed, strict=True):
+        if not group.addParam(selected_motor.dxl_id, address, size):
+            raise RuntimeError(f"failed to add bulk read param for register {name!r}")
+        read_targets.append((name, address, size))
+
+    comm_result = group.txRxPacket()
+    if comm_result != COMM_SUCCESS:
+        raise RuntimeError(handler.getTxRxResult(comm_result))
+
+    return {
+        name: int(group.getData(motor.dxl_id, address, size))
+        for name, address, size in read_targets
+    }
+
+
 def _motor_moving(motor: DynamixelMotor) -> bool | None:
     table = getattr(motor, "CONTROL_TABLE", None)
     if table is not None and "Moving" not in table:
@@ -140,12 +216,33 @@ def _motor_moving(motor: DynamixelMotor) -> bool | None:
     return bool(raw)
 
 
+def _extended_position_mode(bus: object, joint_name: str | None) -> bool:
+    joint_cfg = getattr(bus, "joint", None)
+    if joint_cfg is not None and hasattr(joint_cfg, "position_limits"):
+        return units.joint_uses_extended_position(joint_cfg.position_limits)
+    config = getattr(bus, "config", None)
+    if config is not None and joint_name is not None:
+        return units.joint_uses_extended_position(config.joints[joint_name].position_limits)
+    return False
+
+
 def _within_position_tolerance(
     measured_ticks: int,
     target_ticks: int,
     tolerance_ticks: int,
+    *,
+    extended_position: bool = False,
 ) -> bool:
-    return abs(units.position_error_ticks(measured_ticks, target_ticks)) <= tolerance_ticks
+    return (
+        abs(
+            units.position_error_ticks(
+                measured_ticks,
+                target_ticks,
+                extended_position=extended_position,
+            )
+        )
+        <= tolerance_ticks
+    )
 
 
 def _can_sync_register(motors: list[DynamixelMotor], register_name: str) -> bool:
@@ -263,8 +360,12 @@ def move_positions_to_ticks(
                 measured[joint_name] = read_present_position(motor)
                 moving = _motor_moving(motor)
             target_ticks = positions[joint_name]
+            extended_position = _extended_position_mode(bus, joint_name)
             if not _within_position_tolerance(
-                measured[joint_name], target_ticks, tolerance_ticks
+                measured[joint_name],
+                target_ticks,
+                tolerance_ticks,
+                extended_position=extended_position,
             ):
                 settled = False
             elif moving:
@@ -277,12 +378,11 @@ def move_positions_to_ticks(
 
     return {
         joint_name: (
-            _position_settled(
-                bus,
-                joint_name,
+            _within_position_tolerance(
                 measured.get(joint_name, positions[joint_name]),
                 positions[joint_name],
                 tolerance_ticks,
+                extended_position=_extended_position_mode(bus, joint_name),
             ),
             measured.get(joint_name, positions[joint_name]),
         )
@@ -290,19 +390,6 @@ def move_positions_to_ticks(
     }
 
 
-def _position_settled(
-    bus: object,
-    joint_name: str,
-    measured_ticks: int,
-    target_ticks: int,
-    tolerance_ticks: int,
-) -> bool:
-    if not _within_position_tolerance(measured_ticks, target_ticks, tolerance_ticks):
-        return False
-    bus_lock, motor = _motor_bus(bus, joint_name)
-    with bus_lock:
-        moving = _motor_moving(motor)
-    return moving is not True
 
 def move_to_ticks(
     bus: object,
@@ -317,6 +404,7 @@ def move_to_ticks(
     ``bus`` must expose ``bus_lock`` and either ``motor`` (single joint) or
     ``motors`` (full arm, with ``joint_name`` set).
     """
+    extended_position = _extended_position_mode(bus, joint_name)
     bus_lock, motor = _motor_bus(bus, joint_name)
     with bus_lock:
         motor.set_position(target_ticks)
@@ -328,7 +416,12 @@ def move_to_ticks(
         with bus_lock:
             measured_ticks = read_present_position(motor)
             moving = _motor_moving(motor)
-        if _within_position_tolerance(measured_ticks, target_ticks, tolerance_ticks):
+        if _within_position_tolerance(
+            measured_ticks,
+            target_ticks,
+            tolerance_ticks,
+            extended_position=extended_position,
+        ):
             if moving is not True:
                 return True, measured_ticks
             stable_polls += 1
@@ -337,4 +430,10 @@ def move_to_ticks(
         else:
             stable_polls = 0
         time.sleep(SETTLE_POLL_INTERVAL_S)
-    return False, measured_ticks
+    reached = _within_position_tolerance(
+        measured_ticks,
+        target_ticks,
+        tolerance_ticks,
+        extended_position=extended_position,
+    )
+    return reached, measured_ticks

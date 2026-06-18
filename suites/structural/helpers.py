@@ -53,6 +53,16 @@ LINK_JOINTS: dict[str, tuple[str, ...]] = {
 }
 
 
+def link_joints_for_arm(arm: ArmConfig) -> dict[str, tuple[str, ...]]:
+    """Return point-load links whose joints are all present in ``arm``."""
+    configured = set(arm.joints)
+    return {
+        link: joint_names
+        for link, joint_names in LINK_JOINTS.items()
+        if all(name in configured for name in joint_names)
+    }
+
+
 @dataclass(frozen=True)
 class StructuralMotionConfig:
     profile_velocity_rpm: float

@@ -83,6 +83,12 @@ def thermal_sample_current_ma(
     return current_to_ma(current, model=model)
 
 
+def joint_uses_extended_position(position_limits: tuple[int, int]) -> bool:
+    """Return True when a joint spans outside single-turn encoder range."""
+    low, high = position_limits
+    return min(low, high) < 0 or max(low, high) > TICKS_PER_REV - 1
+
+
 def decode_position_ticks(raw: int) -> int:
     """Convert a Dynamixel Present/Goal_Position read to signed encoder ticks.
 
@@ -96,15 +102,23 @@ def decode_position_ticks(raw: int) -> int:
     return value
 
 
-def position_error_ticks(measured_ticks: int, reference_ticks: int) -> int:
+def position_error_ticks(
+    measured_ticks: int,
+    reference_ticks: int,
+    *,
+    extended_position: bool = False,
+) -> int:
     """Signed tick error (measured minus reference).
 
-    Uses the shortest path on the 4096-tick ring when both values lie in the
-    single-turn range; otherwise uses linear signed error (extended position).
+    Uses linear signed error for extended-position joints. For single-turn joints,
+    uses the shortest path on the 4096-tick ring when both values lie in the
+    single-turn range; otherwise uses linear signed error.
     """
     measured = decode_position_ticks(measured_ticks)
     reference = decode_position_ticks(reference_ticks)
     delta = measured - reference
+    if extended_position:
+        return delta
     if 0 <= measured <= TICKS_PER_REV - 1 and 0 <= reference <= TICKS_PER_REV - 1:
         half = TICKS_PER_REV // 2
         if delta > half:
@@ -114,6 +128,17 @@ def position_error_ticks(measured_ticks: int, reference_ticks: int) -> int:
     return delta
 
 
-def position_error_deg(measured_ticks: int, reference_ticks: int) -> float:
+def position_error_deg(
+    measured_ticks: int,
+    reference_ticks: int,
+    *,
+    extended_position: bool = False,
+) -> float:
     """Signed position error in degrees (measured minus reference)."""
-    return ticks_to_degrees(position_error_ticks(measured_ticks, reference_ticks))
+    return ticks_to_degrees(
+        position_error_ticks(
+            measured_ticks,
+            reference_ticks,
+            extended_position=extended_position,
+        )
+    )
