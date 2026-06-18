@@ -112,7 +112,7 @@ def _update_arm_joint_limits(
     if not isinstance(joint_entry, dict):
         raise ValueError(f"joints.{joint_name} must be a mapping.")
     joint_entry["position_limits"] = [min_ticks, max_ticks]
-    # The saved home tick is the zero point for all degree-relative e2e tests.
+    # The saved home tick is the zero point for all fraction-based e2e tests.
     # It is written atomically with the limits so tests cannot mix old home data
     # with a newly calibrated travel range.
     joint_entry["home_position"] = home_ticks

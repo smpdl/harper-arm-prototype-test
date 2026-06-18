@@ -275,7 +275,7 @@ SCHEMAS: dict[str, CsvSchema] = {
             "keyframe_index",
             "keyframe",
             "joint",
-            "offset_deg",
+            "fraction",
             "target_ticks",
             "measured_ticks",
             "error_deg",

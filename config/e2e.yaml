@@ -1,15 +1,16 @@
 # Home-relative motion patterns for the testing of the HARPER arm.
 #
-# Offsets are degrees from the home position of each joint in
-# config/arm.yaml.  The direction of the joint in arm.yaml decides whether a positive
-# offset increases or decreases encoder ticks.
+# Each joint value is a fraction in [-1, 1] from calibrated home:
+#   0  = home_position in config/arm.yaml
+#   1  = semantic max in position_limits
+#  -1  = semantic min in position_limits
 #
 # Keyframes are confirmed steps in a motion pattern.  Each keyframe is one
 # move command:
 #
-#   - Every joint listed in a keyframe's offsets_deg moves at the same time on a
+#   - Every joint listed in a keyframe's fractions moves at the same time on a
 #     synchronized S-curve and finishes together.
-#   - Joints omitted from offsets_deg are not commanded and hold their current
+#   - Joints omitted from fractions are not commanded and hold their current
 #     position.
 #   - To move joints one after another, use separate keyframes (one motion per
 #     keyframe).
@@ -46,11 +47,11 @@ tests:
     label: Reach sideways
     keyframes:
       - name: open shoulder
-        offsets_deg:
-          r_sh_abd: 12 # open out to the side
-          r_sh_rot: 8  # rotate to open the palm outwards
+        fractions:
+          r_sh_abd: 0.8
+          r_sh_rot: 0.5
       - name: return near home
-        offsets_deg:
+        fractions:
           r_sh_abd: 0
           r_sh_rot: 0
 
@@ -58,125 +59,118 @@ tests:
     label: Reach overhead
     keyframes:
       - name: lift shoulder
-        offsets_deg:
-          r_sh_flex: 12 # open up in the front
-          r_sh_abd: 6 # open out to the side
-          r_elb_flex: -8 # bend the elbow 
+        fractions:
+          r_sh_flex: 0.8
+          r_sh_abd: 0.5
+          r_sh_rot: 0.5
       - name: return near home
-        offsets_deg:
+        fractions:
           r_sh_flex: 0
           r_sh_abd: 0
-          r_elb_flex: 0
+          r_sh_rot: 0
 
   arm_wave:
     label: Arm wave
     keyframes:
-      - name: wave left
-        offsets_deg:
-          r_sh_abd: 10 # open out to the side
-          r_farm_rot: 8 # rotate the forearm so that the palm faces up in the front
-          r_elb_flex: 12 # bend the elbow 
-      - name: wave right
-        offsets_deg:
-          r_elb_flex: -6
+      - name: wave up
+        fractions:
+          r_sh_flex: 1
+          r_sh_rot: 0.5
+          r_sh_abd: 0.3
+      - name: wave back
+        fractions:
+          r_sh_abd: 0.1
+      - name: wave forward
+        fractions:
+          r_sh_abd: 0.5
+      - name: wave back
+        fractions:
+          r_sh_abd: 0.1
+      - name: wave forward
+        fractions:
+          r_sh_abd: 0.5
+      - name: wave back
+        fractions:
+          r_sh_abd: 0.1
+      - name: wave forward
+        fractions:
+          r_sh_abd: 0.5
       - name: return near home
-        offsets_deg:
+        fractions:
+          r_sh_flex: 0
+          r_sh_rot: 0
           r_sh_abd: 0
-          r_elb_flex: 0
-          r_farm_rot: 0
 
   wrist_flexion_sweep:
     label: Wrist flexion sweep
     keyframes:
       - name: wrist flex
-        offsets_deg:
-          r_wrist_flex: 12
+        fractions:
+          r_wrist_flex: 1
       - name: wrist extend
-        offsets_deg:
-          r_wrist_flex: -12
+        fractions:
+          r_wrist_flex: -1
       - name: wrist home
-        offsets_deg:
+        fractions:
           r_wrist_flex: 0
 
   forearm_rotation_sweep:
     label: Forearm rotation sweep
     keyframes:
       - name: pronate
-        offsets_deg:
-          r_farm_rot: 15
+        fractions:
+          r_farm_rot: 1
       - name: supinate
-        offsets_deg:
-          r_farm_rot: -15
+        fractions:
+          r_farm_rot: -1
       - name: forearm home
-        offsets_deg:
+        fractions:
           r_farm_rot: 0
-
-  handshake_motion:
-    label: Handshake motion
-    keyframes:
-      - name: present hand
-        offsets_deg:
-          r_sh_flex: 6
-          r_sh_abd: 8
-          r_elb_flex: 12
-          r_wrist_flex: 4
-      - name: shake down
-        offsets_deg:
-          r_sh_flex: 4
-          r_sh_abd: 8
-          r_elb_flex: 6
-      - name: shake up
-        offsets_deg:
-          r_sh_flex: 8
-          r_sh_abd: 8
-          r_elb_flex: 14
-      - name: return near home
-        offsets_deg:
-          r_sh_flex: 0
-          r_sh_abd: 0
-          r_elb_flex: 0
-          r_wrist_flex: 0
 
   shoulder_rotation_sweep:
     label: Shoulder rotation sweep
     keyframes:
       - name: rotate out
-        offsets_deg:
-          r_sh_rot: 12
+        fractions:
+          r_sh_rot: 1
       - name: rotate in
-        offsets_deg:
-          r_sh_rot: -12
+        fractions:
+          r_sh_rot: -1
       - name: shoulder rotation home
-        offsets_deg:
+        fractions:
           r_sh_rot: 0
 
   combined_wrist_forearm_rotation:
     label: Combined wrist + forearm rotation
     keyframes:
-      - name: rotate together positive
-        offsets_deg:
-          r_farm_rot: 12
-          r_wrist_flex: 8
-      - name: rotate together negative
-        offsets_deg:
-          r_farm_rot: -12
-          r_wrist_flex: -8
+      - name: rotate together max
+        fractions:
+          r_farm_rot: 1
+          r_wrist_flex: 1
+      - name: rotate together min
+        fractions:
+          r_farm_rot: -1
+          r_wrist_flex: -1
       - name: return near home
-        offsets_deg:
+        fractions:
           r_farm_rot: 0
           r_wrist_flex: 0
 
   combined_opposite_shoulder_elbow_flexion:
     label: Combined opposite shoulder + elbow flexion
     keyframes:
+      - name: shoulder rot max
+        fractions:
+          r_sh_rot: 1
       - name: flex elbow
-        offsets_deg:
-          r_elb_flex: 12
+        fractions:
+          r_elb_flex: 0.8
       - name: flex shoulder and extend elbow
-        offsets_deg:
-          r_sh_flex: 12
-          r_elb_flex: -12
+        fractions:
+          r_sh_flex: 0.8
+          r_elb_flex: -0.8
       - name: return near home
-        offsets_deg:
+        fractions:
+          r_sh_rot: 0
           r_sh_flex: 0
           r_elb_flex: 0

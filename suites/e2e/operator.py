@@ -198,7 +198,7 @@ class E2EOperator:
         lines = [f"{keyframe.index}. {keyframe.name}"]
         for target in keyframe.targets.values():
             lines.append(
-                f"  {target.joint}: {target.offset_deg:+.1f} deg "
+                f"  {target.joint}: {target.fraction:+.2f} "
                 f"-> {target.target_ticks} ticks"
             )
         return lines
@@ -365,7 +365,7 @@ class E2EOperator:
                     "keyframe_index": keyframe.index,
                     "keyframe": keyframe.name,
                     "joint": joint_name,
-                    "offset_deg": target.offset_deg,
+                    "fraction": target.fraction,
                     "target_ticks": target.target_ticks,
                     "measured_ticks": measured_ticks,
                     "error_deg": units.position_error_deg(

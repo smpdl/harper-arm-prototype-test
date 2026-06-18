@@ -53,7 +53,7 @@ class E2ESessionMixin:
         lines = [f"{keyframe.index}. {keyframe.name}"]
         for target in keyframe.targets.values():
             lines.append(
-                f"  {target.joint}: {target.offset_deg:+.1f} deg "
+                f"  {target.joint}: {target.fraction:+.2f} "
                 f"-> {target.target_ticks} ticks"
             )
         return lines

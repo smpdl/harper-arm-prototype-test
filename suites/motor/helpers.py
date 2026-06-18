@@ -26,7 +26,7 @@ from harper_arm.joint import DEFAULT_CONFIG_PATH, Joint
 from harper_arm.logging import TestRun
 from harper_arm.motor import POSITION_TOLERANCE_TICKS, move_to_ticks
 from harper_arm.sampling import JointSample, read_joint_sample
-from harper_arm.status import MotorStatus, read_motor_status
+from harper_arm.status import MotorStatus, _motor_status_unlocked
 from tui.catalog import MOTOR_MOTION_TESTS, MOTOR_POSITION_TESTS, MOTOR_WHOLE_ARM_TESTS
 
 DEFAULT_BASE_POSE = "home"
@@ -181,7 +181,8 @@ def _start_status_poller(
         while not stop_event.is_set():
             if connected_joint.bus_lock.acquire(blocking=False):
                 try:
-                    on_status(read_motor_status(connected_joint))
+                    # Caller already holds bus_lock; read_motor_status would re-acquire and deadlock.
+                    on_status(_motor_status_unlocked(connected_joint))
                 except Exception:
                     pass
                 finally:
@@ -237,9 +238,9 @@ def motor_test_run(
 ) -> Iterator[tuple[Joint, TestRun]]:
     """Open hardware, record a motor-suite run, and tear down on exit.
 
-    Position accuracy opens the full bus, torques every joint, moves to base
-    pose, and returns there on teardown. Other motion tests open only the joint
-    under test. Read-only tests do the same without motion setup.
+    Position accuracy and power on response open the full bus, torque every
+    joint, move to base pose, and return there on teardown. Read-only tests
+    open only the joint under test without motion setup.
     """
     arm_config = load_arm_config(config_path)
     if test in MOTOR_WHOLE_ARM_TESTS:
@@ -254,7 +255,11 @@ def motor_test_run(
                 joint_name=joint_name,
                 profile_velocity_rpm=profile_velocity_rpm,
             )
-            ensure_base_position(arm, config_path=config_path)
+            ensure_base_position(
+                arm,
+                config_path=config_path,
+                joint_under_test=joint_name,
+            )
             calibration_settings = load_calibration_settings(DEFAULT_CALIBRATION_PATH)
             prepare_validation_support_joints(
                 arm,

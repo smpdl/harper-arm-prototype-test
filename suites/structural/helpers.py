@@ -156,7 +156,7 @@ def pose_approach_preview_lines(
     lines = [f"Approach pose {pose!r} — keyframe {keyframe.name!r}:"]
     for target in keyframe.targets.values():
         lines.append(
-            f"  {target.joint}: {target.offset_deg:+.1f} deg "
+            f"  {target.joint}: {target.fraction:+.2f} "
             f"-> {target.target_ticks} ticks"
         )
     return lines

@@ -13,11 +13,9 @@ Edit `config/arm.yaml` with your serial port, baud rate, per-joint IDs/models/li
 targets; it is not written to the motor EEPROM.
 
 The calibrated base pose is stored directly on each joint as `home_position`.
-Degree-relative e2e tests compute targets as:
-
-```text
-target_ticks = home_position + direction * degrees_to_ticks(offset_deg)
-```
+E2e motion keyframes use a fraction in `[-1, 1]` per joint: `0` is home, `1` is
+the semantic max in `position_limits`, and `-1` is the semantic min. Targets are
+interpolated in tick space from home toward those limits.
 
 Edit `config/e2e.yaml` to tune conservative multi-joint motion patterns and
 S-curve limits. The e2e suite uses `s-curve-beta` to stream synchronized

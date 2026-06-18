@@ -133,22 +133,28 @@ def load_e2e_config(path: Path | str = DEFAULT_E2E_CONFIG_PATH) -> E2EConfig:
         keyframes: list[MotionKeyframe] = []
         for index, item in enumerate(keyframes_raw, start=1):
             keyframe = _require_mapping(item, label=f"tests.{name}.keyframes[{index}]")
-            offsets_raw = _require_mapping(
-                keyframe.get("offsets_deg"),
-                label=f"tests.{name}.keyframes[{index}].offsets_deg",
+            fractions_raw = _require_mapping(
+                keyframe.get("fractions"),
+                label=f"tests.{name}.keyframes[{index}].fractions",
             )
-            offsets = {joint: float(offset) for joint, offset in offsets_raw.items()}
-            if not offsets:
+            fractions = {joint: float(value) for joint, value in fractions_raw.items()}
+            if not fractions:
                 raise ValueError(
-                    f"tests.{name}.keyframes[{index}].offsets_deg cannot be empty."
+                    f"tests.{name}.keyframes[{index}].fractions cannot be empty."
                 )
+            for joint, fraction in fractions.items():
+                if not -1.0 <= fraction <= 1.0:
+                    raise ValueError(
+                        f"tests.{name}.keyframes[{index}].fractions.{joint} "
+                        f"must be in [-1, 1], got {fraction}."
+                    )
             hold_s = float(keyframe.get("hold_s", default_hold_s))
             if hold_s < 0:
                 raise ValueError(f"tests.{name}.keyframes[{index}].hold_s must be >= 0.")
             keyframes.append(
                 MotionKeyframe(
                     name=str(keyframe.get("name", f"step {index}")),
-                    offsets_deg=offsets,
+                    fractions=fractions,
                     hold_s=hold_s,
                 )
             )

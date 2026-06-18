@@ -11,6 +11,7 @@ from typing import Any
 
 import yaml
 
+from harper_arm import units
 from harper_arm.motor import normalize_model, supported_models
 
 DEFAULT_POSITION_PROFILE_VELOCITY_RPM = 23.0
@@ -39,6 +40,32 @@ def limit_position_at_fraction(limits: tuple[int, int], fraction: float) -> int:
     if not 0.0 <= fraction <= 1.0:
         raise ValueError("fraction must be in [0, 1]")
     return int(round(min_tick + fraction * (max_tick - min_tick)))
+
+
+def position_at_fraction_from_home(joint: JointConfig, fraction: float) -> int:
+    """Return encoder ticks at ``fraction`` from home toward semantic limits.
+
+    ``fraction`` is in ``[-1, 1]``: 0 = calibrated home, 1 = max, -1 = min.
+    """
+    if not -1.0 <= fraction <= 1.0:
+        raise ValueError("fraction must be in [-1, 1]")
+    home = require_home_position(joint)
+    min_tick, max_tick = joint.position_limits
+    if fraction >= 0:
+        return int(round(home + fraction * (max_tick - home)))
+    return int(round(home + fraction * (home - min_tick)))
+
+
+def offset_ticks_toward_max(
+    limits: tuple[int, int],
+    start_ticks: int,
+    delta_deg: float,
+) -> int:
+    """Return a tick target ``delta_deg`` toward semantic max from ``start_ticks``."""
+    min_tick, max_tick = limits
+    toward_max_sign = 1 if max_tick >= min_tick else -1
+    goal = start_ticks + toward_max_sign * units.degrees_to_ticks(delta_deg)
+    return clamp_to_position_limits(min_tick, max_tick, goal)
 
 @dataclass(frozen=True)
 class JointConfig:

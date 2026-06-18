@@ -48,7 +48,7 @@ MOTOR_MOTION_TESTS: tuple[str, ...] = (
     "position_accuracy",
 )
 
-MOTOR_WHOLE_ARM_TESTS: tuple[str, ...] = ("position_accuracy",)
+MOTOR_WHOLE_ARM_TESTS: tuple[str, ...] = ("position_accuracy", "power_on_response")
 
 MOTOR_POSITION_TESTS: tuple[str, ...] = (
     "power_on_response",
@@ -69,7 +69,6 @@ E2E_TEST_NAMES: tuple[str, ...] = (
     "arm_wave",
     "wrist_flexion_sweep",
     "forearm_rotation_sweep",
-    "handshake_motion",
     "shoulder_rotation_sweep",
     "combined_wrist_forearm_rotation",
 )
