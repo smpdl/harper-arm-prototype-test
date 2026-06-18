@@ -65,7 +65,6 @@ def reconfigure_with_recorded_limits(joint: Joint, calibration: JointCalibration
         current_limit=joint.joint.current_limit,
         home_position=joint.joint.home_position,
         calibrated=joint.joint.calibrated,
-        direction=joint.joint.direction,
         position_profile_velocity_rpm=joint.joint.position_profile_velocity_rpm,
     )
     with joint.bus_lock:

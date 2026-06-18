@@ -15,11 +15,8 @@
 # (see conversion notes above). This may differ from the factory EEPROM default
 # for Current Limit(38) (e.g. XM430 default 1193 vs 1004 for 2.7 A).
 
-# Direction of the joint in arm.yaml decides whether a positive offset increases
-# or decreases encoder ticks. For example, with home_position = 2048 and
-# direction = 1, +90deg -> tick 3072; with direction = -1, +90deg -> tick 1024.
-
-# Home position is the position of the joint when it is at its home position.
+# Home position is the calibrated zero for fraction-based e2e motions (fraction 0).
+# position_limits define semantic min (fraction -1) and max (fraction 1).
 # calibrated must be true (set automatically when saving from the TUI) before
 # motion tests will run.
 
@@ -35,7 +32,6 @@ joints:
     position_limits: [0, 4095]
     home_position: null
     calibrated: false
-    direction: 1
     position_profile_acceleration_rpm2: 1000
     current_limit: 2045
   r_sh_abd:
@@ -45,7 +41,6 @@ joints:
     position_limits: [1500, 3200]
     home_position: null
     calibrated: false
-    direction: 1
     position_profile_acceleration_rpm2: 1000
     current_limit: 2045
   r_sh_rot:
@@ -55,7 +50,6 @@ joints:
     position_limits: [1500, 4500]
     home_position: null
     calibrated: false
-    direction: 1
     position_profile_acceleration_rpm2: 1000
     current_limit: 1004
   r_elb_flex:
@@ -65,7 +59,6 @@ joints:
     position_limits: [-15500, 5500]
     home_position: null
     calibrated: false
-    direction: 1
     position_profile_acceleration_rpm2: 1000
     current_limit: 1400
   r_farm_rot:
@@ -75,7 +68,6 @@ joints:
     position_limits: [0, 4095]
     home_position: null
     calibrated: false
-    direction: 1
     position_profile_acceleration_rpm2: 1000
     current_limit: 1400
   r_wrist_flex:
@@ -85,7 +77,6 @@ joints:
     position_limits: [3200, 4800]
     home_position: null
     calibrated: false
-    direction: 1
     position_profile_acceleration_rpm2: 1000
     current_limit: 1400
   # r_fin_thumb:
@@ -95,7 +86,6 @@ joints:
   #   position_limits: [2500, 5500]
   #   home_position: null
   #   calibrated: false
-  #   direction: 1
   #   position_profile_acceleration_rpm2: 1000
   #   current_limit: 2150
   # r_fin_index:
@@ -105,7 +95,6 @@ joints:
   #   position_limits: [-500, 3200]
   #   home_position: null
   #   calibrated: false
-  #   direction: 1
   #   position_profile_acceleration_rpm2: 1000
   #   current_limit: 2150
   # r_fin_middle:
@@ -115,7 +104,6 @@ joints:
   #   position_limits: [-2000, 1900]
   #   home_position: null
   #   calibrated: false
-  #   direction: 1
   #   position_profile_acceleration_rpm2: 1000
   #   current_limit: 2150
   # r_fin_ring:
@@ -125,7 +113,6 @@ joints:
   #   position_limits: [1500, 5500]
   #   home_position: null
   #   calibrated: false
-  #   direction: 1
   #   position_profile_acceleration_rpm2: 1000
   #   current_limit: 2150
   # r_fin_pinky:
@@ -135,6 +122,5 @@ joints:
   #   position_limits: [3000, 6000]
   #   home_position: null
   #   calibrated: false
-  #   direction: 1
   #   position_profile_acceleration_rpm2: 1000
   #   current_limit: 2150

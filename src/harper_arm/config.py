@@ -77,7 +77,6 @@ class JointConfig:
     current_limit: int
     home_position: int | None = None
     calibrated: bool = False
-    direction: int = 1
     position_profile_velocity_rpm: float | None = None
     position_profile_acceleration_rpm2: float | None = None
 
@@ -185,11 +184,13 @@ def _parse_joint(name: str, raw: Any) -> JointConfig:
         raise ValueError(
             f"joint {name!r} is marked calibrated but home_position is missing"
         )
-
-    # direction is the sign of positive degrees for higher-level tests. 
-    direction = int(joint.get("direction", 1))
-    if direction not in {-1, 1}:
-        raise ValueError(f"joint {name!r} direction must be -1 or 1.")
+    if home_position is not None and not target_within_position_limits(
+        (low, high), home_position
+    ):
+        raise ValueError(
+            f"joint {name!r} home_position {home_position} is outside "
+            f"position_limits [{low}, {high}]"
+        )
 
     if protocol not in {1, 2}:
         raise ValueError(f"joint {name!r} protocol must be 1 or 2.")
@@ -230,7 +231,6 @@ def _parse_joint(name: str, raw: Any) -> JointConfig:
         current_limit=current_limit,
         home_position=home_position,
         calibrated=calibrated,
-        direction=direction,
         position_profile_velocity_rpm=position_profile_velocity_rpm,
         position_profile_acceleration_rpm2=position_profile_acceleration_rpm2,
     )

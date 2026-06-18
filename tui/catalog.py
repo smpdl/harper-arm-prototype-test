@@ -71,6 +71,7 @@ E2E_TEST_NAMES: tuple[str, ...] = (
     "forearm_rotation_sweep",
     "shoulder_rotation_sweep",
     "combined_wrist_forearm_rotation",
+    "combined_opposite_shoulder_elbow_flexion",
 )
 
 TUI_STRUCTURAL_SESSION_TESTS: frozenset[str] = frozenset({"point_load"})
@@ -241,6 +242,7 @@ _E2E_BROWSER_LABELS: dict[str, str] = {
     "forearm_rotation_sweep": "Forearm rot",
     "shoulder_rotation_sweep": "Shoulder rot",
     "combined_wrist_forearm_rotation": "Wrist+forearm",
+    "combined_opposite_shoulder_elbow_flexion": "Sh+elb opp",
 }
 
 

@@ -254,7 +254,7 @@ class E2EOperator:
         self._finish()
 
     def _move_home(self) -> None:
-        """Return all joints to home in parallel (E2E only — not sequential homing)."""
+        """Return every joint to calibrated home, one joint at a time."""
         assert self._arm is not None
         reached_all = True
         for joint_name, target_ticks in self._home_pose.items():

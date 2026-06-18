@@ -1,7 +1,7 @@
 # Home-relative motion patterns for the testing of the HARPER arm.
 #
-# Each joint value is a fraction in [-1, 1] from calibrated home:
-#   0  = home_position in config/arm.yaml
+# Each joint value is a fraction in [-1, 1] from calibrated home in config/arm.yaml:
+#   0  = home_position
 #   1  = semantic max in position_limits
 #  -1  = semantic min in position_limits
 #
@@ -40,7 +40,7 @@ default_scurve_max_acceleration_deg_s2: 40 # ~66rpm^2 @ 4096 ticks/rev
 default_scurve_sample_period_s: 0.1
 
 # Seconds to hold each keyframe after the move completes before the next step.
-default_hold_s: 5.0
+default_hold_s: 1.0
 
 tests:
   reach_sideways:

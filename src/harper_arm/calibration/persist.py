@@ -117,6 +117,5 @@ def _update_arm_joint_limits(
     # with a newly calibrated travel range.
     joint_entry["home_position"] = home_ticks
     joint_entry["calibrated"] = True
-    joint_entry.setdefault("direction", 1)
     _write_yaml(arm_path, document)
     load_arm_config(arm_path)

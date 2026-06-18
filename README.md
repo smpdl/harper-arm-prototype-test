@@ -7,7 +7,7 @@ uv sync
 Run commands from the repository root; config paths like `config/arm.yaml` are relative to the current working directory.
 
 Edit `config/arm.yaml` with your serial port, baud rate, per-joint IDs/models/limits,
-`home_position`, and `direction` before connecting hardware. Supported motor models:
+and `home_position` before connecting hardware. Supported motor models:
 `xc330-m288-t`, `xl430-w250-t`, `xm430-w350-t`, `xm540-w270-t`. The
 `current_limit` field is used for software safety thresholds and thermal test
 targets; it is not written to the motor EEPROM.
