@@ -94,7 +94,7 @@ def structural_test_run(
             yield arm, recorder
     finally:
         if not arm._closed:
-            arm.close()
+            arm.close(skip_homing=True)
 
 
 def structural_pose_names(
@@ -176,20 +176,54 @@ def require_pose_approach_confirmed(*, pose: str, pose_confirmed: bool) -> None:
 def return_arm_home(
     arm: FullArm,
     *,
+    pose: str = DEFAULT_HOME_NAME,
     config_path: Path | str = DEFAULT_CONFIG_PATH,
     e2e_config_path: Path | str = DEFAULT_E2E_CONFIG_PATH,
     monitor: SafetyMonitor | None = None,
 ) -> tuple[bool, str, str | None]:
-    """Return every joint to calibrated home."""
-    motion = load_motion_config(DEFAULT_HOME_NAME, e2e_config_path=e2e_config_path)
+    """Return home like e2e: optional return keyframe, then every joint to calibrated home."""
+    motion_pose = pose if pose != DEFAULT_HOME_NAME else DEFAULT_HOME_NAME
+    motion = load_motion_config(motion_pose, e2e_config_path=e2e_config_path)
     prepare_motion_bus(arm, motion)
-    return move_home_scurve(
-        arm,
-        config_path=config_path,
-        e2e_config_path=e2e_config_path,
-        motion=motion,
-        monitor=monitor,
-    )
+
+    stop_reason = ""
+    limiting_joint: str | None = None
+
+    if pose != DEFAULT_HOME_NAME:
+        arm_config = load_arm_config(config_path)
+        return_keyframe = _resolved_return_keyframe(
+            pose,
+            arm_config,
+            e2e_config_path=e2e_config_path,
+        )
+        if return_keyframe is not None:
+            _, stop_reason, limiting_joint = move_keyframe_scurve(
+                arm,
+                return_keyframe,
+                motion,
+                monitor,
+            )
+            if stop_reason:
+                return False, stop_reason, limiting_joint
+
+    home_pose = resolve_home_pose(load_arm_config(config_path))
+    reached_all = True
+    for joint_name, target_ticks in home_pose.items():
+        reached, _ = move_to_ticks(arm, target_ticks, joint_name=joint_name)
+        if not reached:
+            reached_all = False
+        if monitor is not None:
+            safety = monitor.evaluate(arm.sample())
+            if safety.should_stop:
+                return False, safety.reason, safety.triggering_joint
+
+    if not reached_all:
+        return (
+            False,
+            stop_reason or "failed to reach calibrated home position",
+            limiting_joint,
+        )
+    return True, stop_reason, limiting_joint
 
 
 def _resolved_hold_keyframe(
@@ -210,6 +244,23 @@ def _resolved_hold_keyframe(
         ) from exc
     resolved = resolve_plan(arm_config, test.plan)
     return resolved[0]
+
+
+def _resolved_return_keyframe(
+    pose: str,
+    arm_config: ArmConfig,
+    *,
+    e2e_config_path: Path | str = DEFAULT_E2E_CONFIG_PATH,
+) -> ResolvedKeyframe | None:
+    """Return the plan's last keyframe when a pose has a separate return step."""
+    if pose == DEFAULT_HOME_NAME:
+        return None
+    e2e = load_e2e_config(e2e_config_path)
+    test = e2e.tests[pose]
+    resolved = resolve_plan(arm_config, test.plan)
+    if len(resolved) < 2:
+        return None
+    return resolved[-1]
 
 
 def load_pose_ticks(
@@ -306,28 +357,6 @@ def move_keyframe_scurve(
         for joint_name, target_ticks in targets.items()
     }
     return reached, stop_reason, limiting_joint
-
-
-def move_home_scurve(
-    arm: FullArm,
-    *,
-    config_path: Path | str = DEFAULT_CONFIG_PATH,
-    e2e_config_path: Path | str = DEFAULT_E2E_CONFIG_PATH,
-    motion: StructuralMotionConfig | None = None,
-    monitor: SafetyMonitor | None = None,
-) -> tuple[bool, str, str | None]:
-    """Return the arm to calibrated home, one joint at a time in motor-ID order."""
-    _ = e2e_config_path
-    _ = motion
-    results, stop_reason, limiting_joint = move_arm_to_home_sequential(
-        arm,
-        config_path=config_path,
-        prepare_bus=False,
-        pause_s=SEQUENTIAL_HOME_PAUSE_S,
-        monitor=monitor,
-    )
-    reached_all = all(reached for reached, _ in results.values())
-    return reached_all, stop_reason, limiting_joint
 
 
 def prepare_hold_pose(

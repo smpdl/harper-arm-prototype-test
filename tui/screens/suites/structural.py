@@ -344,22 +344,15 @@ class StructuralRunnerScreen(SuiteRunnerScreen):
             from harper_arm.arm import FullArm
             from harper_arm.config import require_arm_calibrated, load_arm_config
 
-            from suites.structural.helpers import (
-                load_motion_config,
-                move_home_scurve,
-                prepare_motion_bus,
-            )
+            from suites.structural.helpers import return_arm_home
 
             require_arm_calibrated(load_arm_config(self.paths.config_path))
-            motion = load_motion_config("home", e2e_config_path=self.paths.e2e_config_path)
             arm = FullArm.open(config_path=self.paths.config_path)
             try:
-                prepare_motion_bus(arm, motion)
-                reached_home, stop_reason, _ = move_home_scurve(
+                reached_home, stop_reason, _ = return_arm_home(
                     arm,
                     config_path=self.paths.config_path,
                     e2e_config_path=self.paths.e2e_config_path,
-                    motion=motion,
                 )
             finally:
                 arm.close(skip_homing=True)

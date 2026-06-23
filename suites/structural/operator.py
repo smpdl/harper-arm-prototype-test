@@ -19,11 +19,10 @@ from .helpers import (
     DEFAULT_HOME_NAME,
     DEFAULT_RESULTS_ROOT,
     link_joints_for_arm,
-    load_motion_config,
     make_safety_monitor,
     max_flex_deg,
-    move_home_scurve,
     prepare_hold_pose,
+    return_arm_home,
     structural_test_run,
     utc_now,
 )
@@ -117,12 +116,11 @@ class PointLoadOperator:
         )
         if self._arm is not None and not self._returned_home and not skip_homing:
             try:
-                motion = load_motion_config(self.pose, e2e_config_path=self.e2e_config_path)
-                reached_home, stop_reason, limiting_joint = move_home_scurve(
+                reached_home, stop_reason, limiting_joint = return_arm_home(
                     self._arm,
+                    pose=self.pose,
                     config_path=self.config_path,
                     e2e_config_path=self.e2e_config_path,
-                    motion=motion,
                     monitor=self._monitor,
                 )
                 self._returned_home = reached_home and not stop_reason
@@ -279,12 +277,11 @@ class PointLoadOperator:
         if self._finished:
             return
         assert self._arm is not None
-        motion = load_motion_config(self.pose, e2e_config_path=self.e2e_config_path)
-        reached_home, stop_reason, limiting_joint = move_home_scurve(
+        reached_home, stop_reason, limiting_joint = return_arm_home(
             self._arm,
+            pose=self.pose,
             config_path=self.config_path,
             e2e_config_path=self.e2e_config_path,
-            motion=motion,
             monitor=self._monitor,
         )
         self._returned_home = reached_home and not stop_reason

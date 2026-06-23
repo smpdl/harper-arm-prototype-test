@@ -55,7 +55,7 @@ def run(
             "e2e_config_path": str(e2e_config_path),
         },
     ) as (arm, recorder):
-        returned_home = False
+        returned_home = pose == DEFAULT_HOME_NAME
         monitor = None
         reached_all = False
         stopped = False
@@ -137,13 +137,14 @@ def run(
                     )
         finally:
             if pose != DEFAULT_HOME_NAME and not returned_home:
-                _, home_reason, _ = return_arm_home(
+                reached, home_reason, _ = return_arm_home(
                     arm,
+                    pose=pose,
                     config_path=config_path,
                     e2e_config_path=e2e_config_path,
                     monitor=monitor,
                 )
-                returned_home = not home_reason
+                returned_home = reached and not home_reason
 
         recorder.set_summary(
             pose_reached=reached_all,
